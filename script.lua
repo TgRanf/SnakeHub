@@ -1,117 +1,99 @@
 -- ============================================
--- SNAKEHUB ULTIMATE MM2 SCRIPT
--- Тёмно-зелёный градиент | Адаптив под телефон/ПК
--- Функции: UI + ESP с ролями + Anti-Kick + Soft Bypass
+-- SNAKEHUB MOBILE EDITION v3 (AeroUI)
+-- Anti-Kick + Bypass активны по умолчанию
+-- Два режима ESP: простой (все зелёные) и по ролям
 -- ============================================
 
--- 1. ГЛОБАЛЬНЫЕ НАСТРОЙКИ
+-- 1. ЗАГРУЗКА AeroUI
+local Aero = loadstring(game:HttpGet("https://raw.githubusercontent.com/AeroScripts/AeroUI/main/source.lua"))()
+
+-- 2. НАСТРОЙКИ (по умолчанию)
 _G.ESPEnabled = false
-_G.AntiKick = false
-_G.SoftBypass = false
+_G.ESPMode = "Roles"  -- "Simple" или "Roles"
 _G.ESPRange = 100
 
--- 2. АДАПТИВНАЯ UI БИБЛИОТЕКА (переработанная Venyx под SnakeHub)
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/KING-OF-THE-VENYX/Venyx/main/source.lua"))()
+-- Anti-Kick и Bypass ВКЛЮЧЕНЫ СРАЗУ (без кнопок)
+_G.AntiKick = true
+_G.SoftBypass = true
 
--- Переопределяем стиль под тёмно-зелёный градиент
-local SnakeTheme = {
-    Background = Color3.fromRGB(10, 25, 10),      -- тёмно-зелёный фон
-    Accent = Color3.fromRGB(0, 200, 80),          -- яркий зелёный
-    Accent2 = Color3.fromRGB(0, 150, 60),         -- тёмный зелёный
-    Text = Color3.fromRGB(200, 255, 200),         -- светлый зелёный текст
-    Shadow = Color3.fromRGB(0, 50, 0)
-}
-
--- Создаём окно с адаптивным размером
+-- 3. UI (адаптивный)
 local screenSize = game:GetService("GuiService"):GetScreenSize()
-local windowSize = Vector2.new(
-    math.min(500, screenSize.X * 0.85),  -- макс 500px, но не более 85% экрана
-    math.min(300, screenSize.Y * 0.7)
-)
-local Window = Library:CreateWindow("SnakeHub", windowSize, Enum.KeyCode.RightControl)
+local win = Aero:CreateWindow({
+    Title = "SnakeHub",
+    Theme = "DarkGreen",
+    Size = {math.min(400, screenSize.X * 0.9), math.min(500, screenSize.Y * 0.8)},
+    OpenKey = Enum.KeyCode.RightControl
+})
 
--- Применяем тему ко всем элементам
-local function applyTheme(gui)
-    for _, child in pairs(gui:GetDescendants()) do
-        if child:IsA("Frame") or child:IsA("ScrollingFrame") then
-            child.BackgroundColor3 = SnakeTheme.Background
-            child.BorderSizePixel = 0
-            -- Градиент (вертикальный)
-            if child:FindFirstChild("UIGradient") then
-                local grad = child:FindFirstChild("UIGradient")
-                grad.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, SnakeTheme.Background),
-                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 50, 20)),
-                    ColorSequenceKeypoint.new(1, SnakeTheme.Background)
-                })
-            else
-                local grad = Instance.new("UIGradient")
-                grad.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, SnakeTheme.Background),
-                    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(20, 50, 20)),
-                    ColorSequenceKeypoint.new(1, SnakeTheme.Background)
-                })
-                grad.Parent = child
-            end
-        elseif child:IsA("TextLabel") or child:IsA("TextButton") then
-            child.TextColor3 = SnakeTheme.Text
-            child.TextScaled = true  -- автоматический размер текста
-            child.Font = Enum.Font.GothamBold
+local mainTab = win:AddTab("Главная")
+
+-- Включение ESP
+mainTab:AddToggle({
+    Name = "ESP Вкл",
+    Default = false,
+    Callback = function(state) _G.ESPEnabled = state end,
+    Size = {0, 50}
+})
+
+-- Переключение режима ESP
+mainTab:AddDropdown({
+    Name = "Режим ESP",
+    Options = {"Простой (все зелёные)", "По ролям"},
+    Default = "По ролям",
+    Callback = function(option)
+        if option == "Простой (все зелёные)" then
+            _G.ESPMode = "Simple"
+        else
+            _G.ESPMode = "Roles"
         end
-    end
-end
+    end,
+    Size = {0, 50}
+})
 
--- Основная вкладка
-local MainTab = Window:CreateTab("Главная")
-
--- Адаптивные кнопки (больше для телефона)
-local function createAdaptiveToggle(name, default, callback)
-    local toggle = MainTab:CreateToggle(name, default, callback)
-    -- Увеличиваем размер для сенсора
-    local btn = toggle:FindFirstChild("ToggleButton")
-    if btn then
-        btn.Size = UDim2.new(0, screenSize.X > 800 and 40 or 50, 0, screenSize.Y > 600 and 40 or 50)
-        btn.BackgroundColor3 = SnakeTheme.Accent2
-        btn.BorderColor3 = SnakeTheme.Accent
-    end
-    return toggle
-end
-
-createAdaptiveToggle("ESP Вкл", false, function(state) _G.ESPEnabled = state end)
-createAdaptiveToggle("Anti-Kick", false, function(state) _G.AntiKick = state end)
-createAdaptiveToggle("Soft Bypass", false, function(state)
-    _G.SoftBypass = state
-    if state then softBypass() end
-end)
-
--- Слайдер с адаптивным размером
-local slider = MainTab:CreateSlider("Дальность ESP", 0, 200, 100, function(value) _G.ESPRange = value end)
-local sliderBar = slider:FindFirstChild("SliderBar")
-if sliderBar then
-    sliderBar.Size = UDim2.new(0, screenSize.X > 800 and 180 or 120, 0, 20)
-end
+-- Слайдер дальности
+mainTab:AddSlider({
+    Name = "Дальность ESP",
+    Min = 0,
+    Max = 200,
+    Default = 100,
+    Callback = function(value) _G.ESPRange = value end,
+    Size = {0, 40}
+})
 
 -- Инфо-вкладка
-local InfoTab = Window:CreateTab("Инфо")
-InfoTab:CreateLabel("Роли: Innocent | Sheriff | Murderer")
-InfoTab:CreateLabel("Anti-Kick активен")
-InfoTab:CreateLabel("Soft Bypass без грубого вмешательства")
-InfoTab:CreateLabel("Адаптировано под телефон и ПК")
+local infoTab = win:AddTab("Инфо")
+infoTab:AddLabel("Anti-Kick и Bypass активны по умолчанию")
+infoTab:AddLabel("Режимы ESP: простой (зелёные) / по ролям")
+infoTab:AddLabel("Адаптировано для Delta/телефона")
 
--- Применяем тему ко всему UI
-applyTheme(Window.Gui)
+-- Кнопка закрытия
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 60, 0, 60)
+closeBtn.Position = UDim2.new(1, -70, 0, 10)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Text = "X"
+closeBtn.TextScaled = true
+closeBtn.TextColor3 = Color3.new(1,1,1)
+closeBtn.Parent = win.Gui
+closeBtn.MouseButton1Click:Connect(function()
+    win.Gui.Enabled = false
+end)
 
--- Добавляем анимацию для телефона (пульсация кнопок)
-game:GetService("RunService").RenderStepped:Connect(function()
-    for _, btn in pairs(Window.Gui:GetDescendants()) do
-        if btn:IsA("TextButton") then
-            btn.BackgroundTransparency = 0.8 + 0.2 * math.sin(tick() * 2)
-        end
-    end
+-- Кнопка открытия на экране
+local openBtn = Instance.new("TextButton")
+openBtn.Size = UDim2.new(0, 70, 0, 70)
+openBtn.Position = UDim2.new(0, 10, 1, -80)
+openBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 60)
+openBtn.Text = "🐍"
+openBtn.TextScaled = true
+openBtn.TextColor3 = Color3.new(1,1,1)
+openBtn.Parent = game:GetService("CoreGui")
+openBtn.MouseButton1Click:Connect(function()
+    win.Gui.Enabled = not win.Gui.Enabled
 end)
 
 -- ============================================
--- 3. ФУНКЦИЯ ПОЛУЧЕНИЯ РОЛИ
+-- 4. ФУНКЦИЯ ПОЛУЧЕНИЯ РОЛИ
 -- ============================================
 local function getRole(player)
     local char = player.Character
@@ -139,7 +121,7 @@ local function getRole(player)
 end
 
 -- ============================================
--- 4. ESP С РОЛЯМИ (оптимизированный)
+-- 5. ESP С ДВУМЯ РЕЖИМАМИ
 -- ============================================
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
@@ -153,16 +135,27 @@ local function createESP(player)
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    
+
     if ESPObjects[player] then
         for _, obj in pairs(ESPObjects[player]) do obj:Destroy() end
         ESPObjects[player] = nil
     end
-    
-    local role = getRole(player)
-    local color = role == "Murderer" and Color3.new(1,0,0) or 
-                  (role == "Sheriff" and Color3.new(0,0,1) or Color3.new(0,1,0))
-    
+
+    -- Определяем цвет
+    local color
+    if _G.ESPMode == "Simple" then
+        color = Color3.new(0, 1, 0)  -- все зелёные
+    else  -- Roles
+        local role = getRole(player)
+        if role == "Murderer" then
+            color = Color3.new(1, 0, 0)  -- красный
+        elseif role == "Sheriff" then
+            color = Color3.new(0, 0, 1)  -- синий
+        else
+            color = Color3.new(0, 1, 0)  -- зелёный (невинный)
+        end
+    end
+
     -- Рамка
     local box = Instance.new("BoxHandleAdornment")
     box.Size = Vector3.new(4, 6, 2)
@@ -172,25 +165,31 @@ local function createESP(player)
     box.Transparency = 0.4
     box.ZIndex = 999
     box.Parent = hrp
-    
-    -- Текст (адаптивный размер шрифта)
+
+    -- Текст
     local bill = Instance.new("BillboardGui")
     bill.Size = UDim2.new(0, math.min(150, screenSize.X * 0.2), 0, math.min(40, screenSize.Y * 0.05))
     bill.Adornee = hrp
     bill.AlwaysOnTop = true
     bill.Parent = hrp
-    
+
     local label = Instance.new("TextLabel", bill)
     label.Size = UDim2.new(1,0,1,0)
     label.BackgroundTransparency = 1
-    label.Text = player.Name .. " [" .. role .. "]"
+    if _G.ESPMode == "Simple" then
+        label.Text = player.Name
+    else
+        local role = getRole(player)
+        label.Text = player.Name .. " [" .. role .. "]"
+    end
     label.TextColor3 = color
     label.TextScaled = true
     label.Font = Enum.Font.GothamBold
-    
+
     ESPObjects[player] = {box, bill}
 end
 
+-- Обновление при появлении игрока
 Players.PlayerAdded:Connect(function(p)
     p.CharacterAdded:Connect(function()
         wait(0.5)
@@ -198,6 +197,7 @@ Players.PlayerAdded:Connect(function(p)
     end)
 end)
 
+-- Основной цикл ESP
 RunService.RenderStepped:Connect(function()
     if not _G.ESPEnabled then
         for _, objs in pairs(ESPObjects) do
@@ -222,14 +222,14 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ============================================
--- 5. ANTI-KICK
+-- 6. ANTI-KICK (АКТИВЕН ПО УМОЛЧАНИЮ)
 -- ============================================
 local function antiKick()
     local player = LP
     local oldKick = player.Kick
     player.Kick = function(self, msg)
         if _G.AntiKick then
-            print("Anti-Kick заблокировал кик: " .. (msg or "без причины"))
+            print("Anti-Kick заблокировал кик")
             return
         end
         return oldKick(self, msg)
@@ -250,7 +250,7 @@ end
 antiKick()
 
 -- ============================================
--- 6. SOFT BYPASS
+-- 7. SOFT BYPASS (АКТИВЕН ПО УМОЛЧАНИЮ)
 -- ============================================
 local function softBypass()
     if not _G.SoftBypass then return end
@@ -261,9 +261,10 @@ local function softBypass()
     collectgarbage()
     print("Soft Bypass активирован")
 end
+softBypass()
 
 -- ============================================
--- 7. АВТО-ПЕРЕПОДКЛЮЧЕНИЕ
+-- 8. АВТО-ПЕРЕПОДКЛЮЧЕНИЕ
 -- ============================================
 local function rejoinOnKick()
     LP.OnTeleport:Connect(function()
@@ -275,6 +276,7 @@ end
 rejoinOnKick()
 
 -- ============================================
--- 8. ЗАВЕРШАЮЩИЙ ЛОГ
+-- 9. ЗАВЕРШАЮЩИЙ ЛОГ
 -- ============================================
-print("SnakeHub загружен. Нажми RightControl или свайп слева для открытия UI (телефон).")
+print("SnakeHub v3 загружен. Anti-Kick и Bypass активны.")
+print("Нажми кнопку 🐍 на экране для открытия UI.")
