@@ -1,5 +1,11 @@
--- SnakeHub Ultimate MM2 (Rayfield)
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- SnakeHub Ultimate MM2 (Rayfield GitHub)
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source.lua'))()
+
+-- Проверка загрузки
+if not Rayfield then
+    warn("Rayfield не загрузился! Используем резервный вариант.")
+    local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/Sirius-Dev/Rayfield/main/source.lua'))()
+end
 
 _G.AutoFarm = false
 _G.ESPEnabled = false
@@ -34,27 +40,20 @@ local Window = Rayfield:CreateWindow({
     ToggleUIKeybind = "K"
 })
 
--- Вкладка Главная
 local MainTab = Window:CreateTab("Главная")
-
 MainTab:CreateButton({
     Name = "📦 Загрузить автофарм (Zynic)",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyn-ic/MM2-AutoFarm/refs/heads/main/FreeScript.lua", true))()
     end
 })
-
 MainTab:CreateToggle({
     Name = "Автофарм",
     CurrentValue = false,
-    Callback = function(Value)
-        _G.AutoFarm = Value
-    end
+    Callback = function(Value) _G.AutoFarm = Value end
 })
 
--- Вкладка Фарм
 local FarmTab = Window:CreateTab("Фарм")
-
 FarmTab:CreateSlider({
     Name = "Скорость фарма",
     Range = {16, 50},
@@ -70,21 +69,16 @@ FarmTab:CreateSlider({
         end
     end
 })
-
 FarmTab:CreateSlider({
     Name = "Радиус поиска монет",
     Range = {50, 200},
     Increment = 5,
     Suffix = "studs",
     CurrentValue = 120,
-    Callback = function(Value)
-        _G.FarmRadius = Value
-    end
+    Callback = function(Value) _G.FarmRadius = Value end
 })
 
--- Вкладка ESP
 local ESPTab = Window:CreateTab("ESP")
-
 ESPTab:CreateToggle({
     Name = "ESP Вкл",
     CurrentValue = false,
@@ -97,29 +91,21 @@ ESPTab:CreateToggle({
         else ClearESP() end
     end
 })
-
 ESPTab:CreateSlider({
     Name = "Дальность ESP",
     Range = {0, 200},
     Increment = 5,
     Suffix = "studs",
     CurrentValue = 100,
-    Callback = function(Value)
-        _G.ESPRange = Value
-    end
+    Callback = function(Value) _G.ESPRange = Value end
 })
 
--- Вкладка Бой
 local CombatTab = Window:CreateTab("Бой")
-
 CombatTab:CreateToggle({
-    Name = "Авто-шот мардера (по кнопке)",
+    Name = "Авто-шот мардера",
     CurrentValue = false,
-    Callback = function(Value)
-        _G.AutoShoot = Value
-    end
+    Callback = function(Value) _G.AutoShoot = Value end
 })
-
 CombatTab:CreateButton({
     Name = "🔫 Выстрелить в мардера",
     Callback = function()
@@ -144,7 +130,6 @@ CombatTab:CreateButton({
         end
     end
 })
-
 CombatTab:CreateToggle({
     Name = "Флинг мардера",
     CurrentValue = false,
@@ -154,19 +139,13 @@ CombatTab:CreateToggle({
     end
 })
 
--- Вкладка Полёт
 local FlyTab = Window:CreateTab("Полёт")
-
 FlyTab:CreateToggle({
     Name = "Включить полёт (сенсор)",
     CurrentValue = false,
     Callback = function(Value)
         _G.FlyEnabled = Value
-        if Value then 
-            startFly()
-        else 
-            stopFly()
-        end
+        if Value then startFly() else stopFly() end
     end
 })
 
