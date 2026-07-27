@@ -1,14 +1,5 @@
--- SnakeHub Ultimate MM2 (Mobile Fly)
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
-
-local Window = OrionLib:MakeWindow({
-    Name = "🐍 SnakeHub",
-    HidePremium = false,
-    SaveConfig = true,
-    ConfigFolder = "SnakeHubConfig",
-    IntroText = "SnakeHub by YinYang",
-    IntroIcon = "rbxassetid://4483345998"
-})
+-- SnakeHub Ultimate MM2 (Rayfield)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 _G.AutoFarm = false
 _G.ESPEnabled = false
@@ -32,33 +23,44 @@ local upActive = false
 local downActive = false
 local flySpeed = 50
 
-local MainTab = Window:MakeTab({Name = "Главная", Icon = "rbxassetid://4483345998"})
-local Section = MainTab:AddSection({Name = "Управление"})
+local Window = Rayfield:CreateWindow({
+    Name = "🐍 SnakeHub",
+    LoadingTitle = "SnakeHub",
+    LoadingSubtitle = "by YinYang",
+    Theme = "Dark",
+    ConfigurationSaving = {
+        Enabled = false
+    },
+    ToggleUIKeybind = "K"
+})
 
-Section:AddButton({
+-- Вкладка Главная
+local MainTab = Window:CreateTab("Главная")
+
+MainTab:CreateButton({
     Name = "📦 Загрузить автофарм (Zynic)",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyn-ic/MM2-AutoFarm/refs/heads/main/FreeScript.lua", true))()
-        OrionLib:MakeNotification({Name = "SnakeHub", Content = "Автофарм Zynic загружен!", Time = 3})
     end
 })
 
-Section:AddToggle({
+MainTab:CreateToggle({
     Name = "Автофарм",
-    Default = false,
-    Flag = "AutoFarm",
-    Callback = function(Value) _G.AutoFarm = Value end
+    CurrentValue = false,
+    Callback = function(Value)
+        _G.AutoFarm = Value
+    end
 })
 
-local FarmTab = Window:MakeTab({Name = "Фарм", Icon = "rbxassetid://4483345998"})
-local FarmSection = FarmTab:AddSection({Name = "Настройки фарма"})
+-- Вкладка Фарм
+local FarmTab = Window:CreateTab("Фарм")
 
-FarmSection:AddSlider({
+FarmTab:CreateSlider({
     Name = "Скорость фарма",
-    Min = 16, Max = 50, Default = 25,
-    Color = Color3.fromRGB(0, 255, 100),
-    Increment = 1, ValueName = "walk",
-    Flag = "FarmSpeed",
+    Range = {16, 50},
+    Increment = 1,
+    Suffix = "walk",
+    CurrentValue = 25,
     Callback = function(Value)
         _G.FarmSpeed = Value
         local char = game.Players.LocalPlayer.Character
@@ -69,22 +71,23 @@ FarmSection:AddSlider({
     end
 })
 
-FarmSection:AddSlider({
+FarmTab:CreateSlider({
     Name = "Радиус поиска монет",
-    Min = 50, Max = 200, Default = 120,
-    Color = Color3.fromRGB(0, 255, 100),
-    Increment = 5, ValueName = "studs",
-    Flag = "FarmRadius",
-    Callback = function(Value) _G.FarmRadius = Value end
+    Range = {50, 200},
+    Increment = 5,
+    Suffix = "studs",
+    CurrentValue = 120,
+    Callback = function(Value)
+        _G.FarmRadius = Value
+    end
 })
 
-local ESPTab = Window:MakeTab({Name = "ESP", Icon = "rbxassetid://4483345998"})
-local ESPSection = ESPTab:AddSection({Name = "Настройки ESP"})
+-- Вкладка ESP
+local ESPTab = Window:CreateTab("ESP")
 
-ESPSection:AddToggle({
+ESPTab:CreateToggle({
     Name = "ESP Вкл",
-    Default = false,
-    Flag = "ESPEnabled",
+    CurrentValue = false,
     Callback = function(Value)
         _G.ESPEnabled = Value
         if Value then
@@ -95,32 +98,32 @@ ESPSection:AddToggle({
     end
 })
 
-ESPSection:AddSlider({
+ESPTab:CreateSlider({
     Name = "Дальность ESP",
-    Min = 0, Max = 200, Default = 100,
-    Color = Color3.fromRGB(0, 255, 100),
-    Increment = 5, ValueName = "studs",
-    Flag = "ESPRange",
-    Callback = function(Value) _G.ESPRange = Value end
+    Range = {0, 200},
+    Increment = 5,
+    Suffix = "studs",
+    CurrentValue = 100,
+    Callback = function(Value)
+        _G.ESPRange = Value
+    end
 })
 
-local CombatTab = Window:MakeTab({Name = "Бой", Icon = "rbxassetid://4483345998"})
-local CombatSection = CombatTab:AddSection({Name = "Аимбот и автошот"})
+-- Вкладка Бой
+local CombatTab = Window:CreateTab("Бой")
 
-CombatSection:AddToggle({
+CombatTab:CreateToggle({
     Name = "Авто-шот мардера (по кнопке)",
-    Default = false,
-    Flag = "AutoShoot",
-    Callback = function(Value) _G.AutoShoot = Value end
+    CurrentValue = false,
+    Callback = function(Value)
+        _G.AutoShoot = Value
+    end
 })
 
-CombatSection:AddButton({
+CombatTab:CreateButton({
     Name = "🔫 Выстрелить в мардера",
     Callback = function()
-        if not _G.AutoShoot then
-            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Включите авто-шот!", Time = 2})
-            return
-        end
+        if not _G.AutoShoot then return end
         local murderer = nil
         for _, player in pairs(game.Players:GetPlayers()) do
             if player ~= game.Players.LocalPlayer and player.Character then
@@ -137,36 +140,30 @@ CombatSection:AddButton({
             if head then
                 game:GetService("Workspace").CurrentCamera.CFrame = 
                     CFrame.new(game:GetService("Workspace").CurrentCamera.CFrame.Position, head.Position)
-                OrionLib:MakeNotification({Name = "SnakeHub", Content = "🔫 Выстрел по убийце!", Time = 2})
             end
-        else
-            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Убийца не найден.", Time = 2})
         end
     end
 })
 
-CombatSection:AddToggle({
+CombatTab:CreateToggle({
     Name = "Флинг мардера",
-    Default = false,
-    Flag = "FlingMurderer",
+    CurrentValue = false,
     Callback = function(Value)
         _G.FlingMurderer = Value
         if Value then StartFlingLoop() else StopFlingLoop() end
     end
 })
 
-local FlyTab = Window:MakeTab({Name = "Полёт", Icon = "rbxassetid://4483345998"})
-local FlySection = FlyTab:AddSection({Name = "Управление полётом (сенсор)"})
+-- Вкладка Полёт
+local FlyTab = Window:CreateTab("Полёт")
 
-FlySection:AddToggle({
-    Name = "Включить полёт",
-    Default = false,
-    Flag = "FlyEnabled",
+FlyTab:CreateToggle({
+    Name = "Включить полёт (сенсор)",
+    CurrentValue = false,
     Callback = function(Value)
         _G.FlyEnabled = Value
         if Value then 
             startFly()
-            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Полёт включён! Левая половина — джойстик, правая — вверх/вниз.", Time = 4})
         else 
             stopFly()
         end
@@ -174,7 +171,7 @@ FlySection:AddToggle({
 })
 
 -- ============================================
--- MOBILE FLY (вставлен из открытого репозитория)
+-- MOBILE FLY
 -- ============================================
 
 local function createFlyUI()
@@ -495,11 +492,4 @@ game.Players.PlayerAdded:Connect(function(player)
     end)
 end)
 
-OrionLib:MakeNotification({
-    Name = "🐍 SnakeHub",
-    Content = "Загружен! Полёт адаптирован для телефона.",
-    Time = 5
-})
-
-print("🐍 SnakeHub Ultimate загружен!")
-print("Функции: Автофарм | ESP | Авто-шот | Полёт (сенсор) | Флинг")
+print("🐍 SnakeHub Ultimate загружен! Нажми K для открытия меню.")
