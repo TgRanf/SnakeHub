@@ -1,150 +1,345 @@
--- SnakeHub Ultimate MM2
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyn-ic/MM2-AutoFarm/refs/heads/main/UI-Library/XSX.lua", true))()
-local Notif = Library:InitNotifications()
-Library.title = "🐍 SnakeHub"
-Library.rank = "developer"
+-- SnakeHub Ultimate MM2 (Mobile Fly)
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/shlexware/Orion/main/source"))()
+
+local Window = OrionLib:MakeWindow({
+    Name = "🐍 SnakeHub",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "SnakeHubConfig",
+    IntroText = "SnakeHub by YinYang",
+    IntroIcon = "rbxassetid://4483345998"
+})
 
 _G.AutoFarm = false
-_G.FlyEnabled = false
-_G.NoclipEnabled = false
 _G.ESPEnabled = false
-_G.AimbotEnabled = false
-_G.AntiKick = true
-_G.WalkSpeed = 25
-_G.JumpPower = 50
 _G.ESPRange = 100
-_G.HitboxSize = 3
-
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
-local UIS = game:GetService("UserInputService")
+_G.AutoShoot = false
+_G.FlyEnabled = false
+_G.FlingMurderer = false
+_G.FarmSpeed = 25
+_G.FarmRadius = 120
 
 local ESPObjects = {}
+local flingConnection = nil
+
+-- Mobile Fly
 local flying = false
-local flyBV, flyBG, flyConnection
-local noclipConnection = nil
+local flyBV = nil
+local flyConnection = nil
+local joystickActive = false
+local joystickPos = Vector2.new(0, 0)
+local upActive = false
+local downActive = false
+local flySpeed = 50
 
-local Init = Library:Init()
-local MainTab = Init:NewTab("Главная 🏠")
-local FarmTab = Init:NewTab("Автофарм ♻️")
-local ESPTab = Init:NewTab("ESP 🎯")
-local CombatTab = Init:NewTab("Бой ⚔️")
-local MoveTab = Init:NewTab("Движение ✈️")
-local ProtectTab = Init:NewTab("Защита 🛡️")
-local InfoTab = Init:NewTab("Инфо ℹ️")
+local MainTab = Window:MakeTab({Name = "Главная", Icon = "rbxassetid://4483345998"})
+local Section = MainTab:AddSection({Name = "Управление"})
 
-MainTab:NewSection("Управление")
-MainTab:NewKeybind("Скрыть GUI", Enum.KeyCode.RightAlt, function(key) Init:UpdateKeybind(key) end)
-MainTab:NewButton("Уничтожить GUI", function()
-    for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "SnakeHub" then v:Destroy() end end
-    Library:Destroy()
-    Notif:Notify("GUI уничтожен", 1, "success")
-end)
-
-FarmTab:NewSection("Настройки фарма")
-FarmTab:NewSlider("Скорость фарма", "", true, "/", {min = 16, max = 50, default = _G.WalkSpeed}, function(value)
-    _G.WalkSpeed = value
-    if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
-        LP.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = value
+Section:AddButton({
+    Name = "📦 Загрузить автофарм (Zynic)",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyn-ic/MM2-AutoFarm/refs/heads/main/FreeScript.lua", true))()
+        OrionLib:MakeNotification({Name = "SnakeHub", Content = "Автофарм Zynic загружен!", Time = 3})
     end
-end)
+})
 
-FarmTab:NewToggle("Автофарм (Zynic)", false, function(value)
-    _G.AutoFarm = value
-    if value then
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/Zyn-ic/MM2-AutoFarm/refs/heads/main/Zynic-Auto-Farm/source.lua", true))()
-        Notif:Notify("Автофарм запущен", 2, "success")
-    else
-        Notif:Notify("Автофарм остановлен", 2, "success")
-    end
-end)
+Section:AddToggle({
+    Name = "Автофарм",
+    Default = false,
+    Flag = "AutoFarm",
+    Callback = function(Value) _G.AutoFarm = Value end
+})
 
-FarmTab:NewToggle("Авторесет при полном мешке", false, function(value)
-    _G.AutoReset = value
-    Notif:Notify("Авторесет " .. (value and "включен" or "выключен"), 1, "success")
-end)
+local FarmTab = Window:MakeTab({Name = "Фарм", Icon = "rbxassetid://4483345998"})
+local FarmSection = FarmTab:AddSection({Name = "Настройки фарма"})
 
-ESPTab:NewSection("Настройки ESP")
-ESPTab:NewToggle("ESP Вкл", false, function(value)
-    _G.ESPEnabled = value
-    if value then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LP then CreateESP(player) end
+FarmSection:AddSlider({
+    Name = "Скорость фарма",
+    Min = 16, Max = 50, Default = 25,
+    Color = Color3.fromRGB(0, 255, 100),
+    Increment = 1, ValueName = "walk",
+    Flag = "FarmSpeed",
+    Callback = function(Value)
+        _G.FarmSpeed = Value
+        local char = game.Players.LocalPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then humanoid.WalkSpeed = Value end
         end
-        Notif:Notify("ESP включен", 1, "success")
-    else
-        ClearESP()
-        Notif:Notify("ESP выключен", 1, "success")
     end
-end)
+})
 
-ESPTab:NewSlider("Дальность ESP", "", true, "/", {min = 0, max = 200, default = _G.ESPRange}, function(value)
-    _G.ESPRange = value
-end)
+FarmSection:AddSlider({
+    Name = "Радиус поиска монет",
+    Min = 50, Max = 200, Default = 120,
+    Color = Color3.fromRGB(0, 255, 100),
+    Increment = 5, ValueName = "studs",
+    Flag = "FarmRadius",
+    Callback = function(Value) _G.FarmRadius = Value end
+})
 
-CombatTab:NewSection("Боевые функции")
-CombatTab:NewToggle("Аимбот (с проверкой стен)", false, function(value)
-    _G.AimbotEnabled = value
-    Notif:Notify("Аимбот " .. (value and "включен" or "выключен"), 1, "success")
-end)
+local ESPTab = Window:MakeTab({Name = "ESP", Icon = "rbxassetid://4483345998"})
+local ESPSection = ESPTab:AddSection({Name = "Настройки ESP"})
 
-CombatTab:NewToggle("Флинг мардера после ресета", false, function(value)
-    _G.FlingMurderer = value
-    if value then startFlingLoop() else stopFlingLoop() end
-    Notif:Notify("Флинг " .. (value and "включен" or "выключен"), 1, "success")
-end)
-
-CombatTab:NewSlider("Размер хитбокса", "", true, "/", {min = 1, max = 10, default = _G.HitboxSize}, function(value)
-    _G.HitboxSize = value
-end)
-
-MoveTab:NewSection("Движение")
-MoveTab:NewToggle("Полёт (WASD+Space)", false, function(value)
-    _G.FlyEnabled = value
-    if value then StartFly() else StopFly() end
-    Notif:Notify("Полёт " .. (value and "включен" or "выключен"), 1, "success")
-end)
-
-MoveTab:NewToggle("Ноклип", false, function(value)
-    _G.NoclipEnabled = value
-    if value then noclipConnection = EnableNoclip() else 
-        if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end 
+ESPSection:AddToggle({
+    Name = "ESP Вкл",
+    Default = false,
+    Flag = "ESPEnabled",
+    Callback = function(Value)
+        _G.ESPEnabled = Value
+        if Value then
+            for _, player in pairs(game.Players:GetPlayers()) do
+                if player ~= game.Players.LocalPlayer then CreateESP(player) end
+            end
+        else ClearESP() end
     end
-    Notif:Notify("Ноклип " .. (value and "включен" or "выключен"), 1, "success")
-end)
+})
 
-MoveTab:NewSlider("Сила прыжка", "", true, "/", {min = 50, max = 300, default = _G.JumpPower}, function(value)
-    _G.JumpPower = value
-    if LP.Character and LP.Character:FindFirstChildOfClass("Humanoid") then
-        LP.Character:FindFirstChildOfClass("Humanoid").JumpPower = value
+ESPSection:AddSlider({
+    Name = "Дальность ESP",
+    Min = 0, Max = 200, Default = 100,
+    Color = Color3.fromRGB(0, 255, 100),
+    Increment = 5, ValueName = "studs",
+    Flag = "ESPRange",
+    Callback = function(Value) _G.ESPRange = Value end
+})
+
+local CombatTab = Window:MakeTab({Name = "Бой", Icon = "rbxassetid://4483345998"})
+local CombatSection = CombatTab:AddSection({Name = "Аимбот и автошот"})
+
+CombatSection:AddToggle({
+    Name = "Авто-шот мардера (по кнопке)",
+    Default = false,
+    Flag = "AutoShoot",
+    Callback = function(Value) _G.AutoShoot = Value end
+})
+
+CombatSection:AddButton({
+    Name = "🔫 Выстрелить в мардера",
+    Callback = function()
+        if not _G.AutoShoot then
+            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Включите авто-шот!", Time = 2})
+            return
+        end
+        local murderer = nil
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer and player.Character then
+                for _, tool in pairs(player.Character:GetChildren()) do
+                    if tool:IsA("Tool") and (tool.Name:match("Knife") or tool.Name:match("Dagger")) then
+                        murderer = player
+                        break
+                    end
+                end
+            end
+        end
+        if murderer and murderer.Character then
+            local head = murderer.Character:FindFirstChild("Head")
+            if head then
+                game:GetService("Workspace").CurrentCamera.CFrame = 
+                    CFrame.new(game:GetService("Workspace").CurrentCamera.CFrame.Position, head.Position)
+                OrionLib:MakeNotification({Name = "SnakeHub", Content = "🔫 Выстрел по убийце!", Time = 2})
+            end
+        else
+            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Убийца не найден.", Time = 2})
+        end
     end
-end)
+})
 
-ProtectTab:NewSection("Защита")
-ProtectTab:NewToggle("Anti-Kick", true, function(value)
-    _G.AntiKick = value
-    Notif:Notify("Anti-Kick " .. (value and "включен" or "выключен"), 1, "success")
-end)
+CombatSection:AddToggle({
+    Name = "Флинг мардера",
+    Default = false,
+    Flag = "FlingMurderer",
+    Callback = function(Value)
+        _G.FlingMurderer = Value
+        if Value then StartFlingLoop() else StopFlingLoop() end
+    end
+})
 
-ProtectTab:NewToggle("Anti-AFK", true, function(value)
-    _G.AntiAFK = value
-    Notif:Notify("Anti-AFK " .. (value and "включен" or "выключен"), 1, "success")
-end)
+local FlyTab = Window:MakeTab({Name = "Полёт", Icon = "rbxassetid://4483345998"})
+local FlySection = FlyTab:AddSection({Name = "Управление полётом (сенсор)"})
 
-InfoTab:NewSection("О скрипте")
-InfoTab:NewLabel("🐍 SnakeHub Ultimate MM2", "center")
-InfoTab:NewLabel("Функции:", "left")
-InfoTab:NewLabel("• Автофарм (Zynic)", "left")
-InfoTab:NewLabel("• ESP с ролями", "left")
-InfoTab:NewLabel("• Полёт (WASD+Space)", "left")
-InfoTab:NewLabel("• Аимбот", "left")
-InfoTab:NewLabel("• Флинг мардера", "left")
-InfoTab:NewLabel("• Anti-Kick + Anti-AFK", "left")
-InfoTab:NewLabel("• Регулировка скорости и прыжка", "left")
-InfoTab:NewLabel("• Хитбокс экстендер", "left")
+FlySection:AddToggle({
+    Name = "Включить полёт",
+    Default = false,
+    Flag = "FlyEnabled",
+    Callback = function(Value)
+        _G.FlyEnabled = Value
+        if Value then 
+            startFly()
+            OrionLib:MakeNotification({Name = "SnakeHub", Content = "Полёт включён! Левая половина — джойстик, правая — вверх/вниз.", Time = 4})
+        else 
+            stopFly()
+        end
+    end
+})
+
+-- ============================================
+-- MOBILE FLY (вставлен из открытого репозитория)
+-- ============================================
+
+local function createFlyUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FlyControls"
+    screenGui.Parent = game:GetService("CoreGui")
+    screenGui.ResetOnSpawn = false
+
+    local joystickArea = Instance.new("Frame")
+    joystickArea.Size = UDim2.new(0.5, 0, 1, 0)
+    joystickArea.Position = UDim2.new(0, 0, 0, 0)
+    joystickArea.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    joystickArea.BackgroundTransparency = 0.8
+    joystickArea.BorderSizePixel = 0
+    joystickArea.Parent = screenGui
+
+    local joystickCircle = Instance.new("Frame")
+    joystickCircle.Size = UDim2.new(0, 100, 0, 100)
+    joystickCircle.Position = UDim2.new(0.5, -50, 0.5, -50)
+    joystickCircle.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    joystickCircle.BackgroundTransparency = 0.4
+    joystickCircle.BorderSizePixel = 0
+    joystickCircle.Parent = joystickArea
+    Instance.new("UICorner").Parent = joystickCircle
+
+    local joystickDot = Instance.new("Frame")
+    joystickDot.Size = UDim2.new(0, 30, 0, 30)
+    joystickDot.Position = UDim2.new(0.5, -15, 0.5, -15)
+    joystickDot.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+    joystickDot.BackgroundTransparency = 0.3
+    joystickDot.BorderSizePixel = 0
+    joystickDot.Parent = joystickCircle
+    Instance.new("UICorner").Parent = joystickDot
+
+    local upBtn = Instance.new("TextButton")
+    upBtn.Size = UDim2.new(0.2, 0, 0.15, 0)
+    upBtn.Position = UDim2.new(0.75, 0, 0.2, 0)
+    upBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+    upBtn.Text = "⬆"
+    upBtn.TextColor3 = Color3.new(1, 1, 1)
+    upBtn.TextScaled = true
+    upBtn.Font = Enum.Font.GothamBold
+    upBtn.Parent = screenGui
+    Instance.new("UICorner").Parent = upBtn
+
+    local downBtn = Instance.new("TextButton")
+    downBtn.Size = UDim2.new(0.2, 0, 0.15, 0)
+    downBtn.Position = UDim2.new(0.75, 0, 0.65, 0)
+    downBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    downBtn.Text = "⬇"
+    downBtn.TextColor3 = Color3.new(1, 1, 1)
+    downBtn.TextScaled = true
+    downBtn.Font = Enum.Font.GothamBold
+    downBtn.Parent = screenGui
+    Instance.new("UICorner").Parent = downBtn
+
+    local function updateJoystick(input, isActive)
+        if not isActive then
+            joystickPos = Vector2.new(0, 0)
+            joystickDot.Position = UDim2.new(0.5, -15, 0.5, -15)
+            return
+        end
+        local pos = input.Position
+        local center = joystickArea.AbsolutePosition + joystickArea.AbsoluteSize / 2
+        local delta = pos - center
+        local maxDist = 50
+        local dist = math.min(delta.Magnitude, maxDist)
+        local angle = math.atan2(delta.Y, delta.X)
+        joystickPos = Vector2.new(math.cos(angle) * dist / maxDist, math.sin(angle) * dist / maxDist)
+        joystickDot.Position = UDim2.new(0.5, -15 + math.cos(angle) * dist, 0.5, -15 + math.sin(angle) * dist)
+    end
+
+    joystickArea.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            joystickActive = true
+            updateJoystick(input, true)
+        end
+    end)
+
+    joystickArea.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch and joystickActive then
+            updateJoystick(input, true)
+        end
+    end)
+
+    joystickArea.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            joystickActive = false
+            updateJoystick(nil, false)
+        end
+    end)
+
+    upBtn.MouseButton1Down:Connect(function() upActive = true end)
+    upBtn.MouseButton1Up:Connect(function() upActive = false end)
+    upBtn.MouseLeave:Connect(function() upActive = false end)
+
+    downBtn.MouseButton1Down:Connect(function() downActive = true end)
+    downBtn.MouseButton1Up:Connect(function() downActive = false end)
+    downBtn.MouseLeave:Connect(function() downActive = false end)
+
+    return screenGui
+end
+
+local function startFly()
+    if flying then return end
+    local char = game.Players.LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not humanoid then return end
+
+    flying = true
+    humanoid.PlatformStand = true
+
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    flyBV.Velocity = Vector3.new(0, 0, 0)
+    flyBV.Parent = hrp
+
+    createFlyUI()
+
+    flyConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if not flying then return end
+        if not hrp or not hrp.Parent then return end
+
+        local cam = workspace.CurrentCamera
+        local moveDir = Vector3.new()
+
+        if joystickPos.Magnitude > 0.1 then
+            local forward = cam.CFrame.LookVector * (-joystickPos.Y)
+            local right = cam.CFrame.RightVector * joystickPos.X
+            moveDir += forward + right
+        end
+
+        if upActive then moveDir += Vector3.new(0, 1, 0) end
+        if downActive then moveDir += Vector3.new(0, -1, 0) end
+
+        if moveDir.Magnitude > 0 then
+            moveDir = moveDir.Unit * flySpeed
+            flyBV.Velocity = moveDir
+        else
+            flyBV.Velocity = Vector3.new(0, 0, 0)
+        end
+    end)
+end
+
+local function stopFly()
+    flying = false
+    if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
+    if flyBV then flyBV:Destroy(); flyBV = nil end
+
+    for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+        if v.Name == "FlyControls" then v:Destroy() end
+    end
+
+    local char = game.Players.LocalPlayer.Character
+    if char then
+        local humanoid = char:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.PlatformStand = false end
+    end
+end
+
+-- ============================================
+-- ОСТАЛЬНЫЕ ФУНКЦИИ
+-- ============================================
 
 function getRole(player)
     local role = "Innocent"
@@ -176,7 +371,7 @@ function getRole(player)
 end
 
 function CreateESP(player)
-    if player == LP then return end
+    if player == game.Players.LocalPlayer then return end
     local char = player.Character
     if not char then return end
     local head = char:FindFirstChild("Head")
@@ -217,72 +412,9 @@ function ClearESP()
     ESPObjects = {}
 end
 
-function StartFly()
-    if flying then return end
-    local char = LP.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    if not hrp or not humanoid then return end
-    flying = true
-    humanoid.PlatformStand = true
-    flyBV = Instance.new("BodyVelocity")
-    flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    flyBV.Velocity = Vector3.new(0,0,0)
-    flyBV.Parent = hrp
-    flyBG = Instance.new("BodyGyro")
-    flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    flyBG.P = 9e4
-    flyBG.CFrame = hrp.CFrame
-    flyBG.Parent = hrp
-    flyConnection = RunService.RenderStepped:Connect(function()
-        if not _G.FlyEnabled then return end
-        if not hrp or not hrp.Parent then return end
-        local moveDir = Vector3.new()
-        local cam = Workspace.CurrentCamera
-        if UIS:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then moveDir -= cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then moveDir -= cam.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then moveDir += cam.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then moveDir += Vector3.new(0,1,0) end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0,1,0) end
-        if moveDir.Magnitude > 0 then moveDir = moveDir.Unit end
-        flyBV.Velocity = moveDir * 50
-        flyBG.CFrame = cam.CFrame
-    end)
-end
-
-function StopFly()
-    flying = false
-    if flyConnection then flyConnection:Disconnect(); flyConnection = nil end
-    if flyBV then flyBV:Destroy(); flyBV = nil end
-    if flyBG then flyBG:Destroy(); flyBG = nil end
-    local char = LP.Character
-    if char then
-        local humanoid = char:FindFirstChildOfClass("Humanoid")
-        if humanoid then humanoid.PlatformStand = false end
-    end
-end
-
-function EnableNoclip()
-    local connection
-    connection = RunService.Stepped:Connect(function()
-        if not _G.NoclipEnabled then return end
-        local char = LP.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-    return connection
-end
-
 function getMurderer()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= game.Players.LocalPlayer and p.Character then
             for _, tool in pairs(p.Character:GetChildren()) do
                 if tool:IsA("Tool") and (tool.Name:match("Knife") or tool.Name:match("Dagger")) then
                     return p
@@ -299,93 +431,26 @@ function flingPlayer(target)
     if not hrp then return end
     hrp.Velocity = Vector3.new(99999, 99999, 99999)
     hrp.CFrame = CFrame.new(0, -500, 0)
-    Notif:Notify("Мардер улетел за карту!", 2, "success")
 end
 
-function startFlingLoop()
+function StartFlingLoop()
     if flingConnection then flingConnection:Disconnect() end
-    flingConnection = RunService.RenderStepped:Connect(function()
+    flingConnection = game:GetService("RunService").RenderStepped:Connect(function()
         if not _G.FlingMurderer then return end
         local murderer = getMurderer()
         if murderer then flingPlayer(murderer) end
     end)
 end
 
-function stopFlingLoop()
+function StopFlingLoop()
     if flingConnection then flingConnection:Disconnect(); flingConnection = nil end
 end
 
-function ApplyAimbot()
-    if not _G.AimbotEnabled then return end
-    local target = nil
-    local dist = math.huge
-    local origin = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if not origin then return end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP then
-            local char = p.Character
-            if char then
-                local hrp = char:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local d = (hrp.Position - origin.Position).Magnitude
-                    if d < dist then
-                        dist = d
-                        target = hrp
-                    end
-                end
-            end
-        end
-    end
-    if target then
-        Workspace.CurrentCamera.CFrame = CFrame.new(Workspace.CurrentCamera.CFrame.Position, target.Position)
-    end
-end
-
-function ApplyHitbox()
-    if _G.HitboxSize <= 1 then return end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
-            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
-            end
-        end
-    end
-end
-
-local function AntiKick()
-    local oldKick = LP.Kick
-    LP.Kick = function(self, msg)
-        if _G.AntiKick then return end
-        return oldKick(self, msg)
-    end
-    local ts = game:GetService("TeleportService")
-    if ts and ts.Teleport then
-        local oldTeleport = ts.Teleport
-        ts.Teleport = function(self, placeId, ...)
-            if _G.AntiKick then return end
-            return oldTeleport(self, placeId, ...)
-        end
-    end
-end
-AntiKick()
-
-local function AntiAFK()
-    local vu = game:GetService("VirtualUser")
-    game:GetService("Players").LocalPlayer.Idled:Connect(function()
-        if _G.AntiAFK then
-            vu:CaptureController()
-            vu:ClickButton2(Vector2.new())
-            Notif:Notify("Anti-AFK сработал", 1, "info")
-        end
-    end)
-end
-AntiAFK()
-
-local function CollectCoins()
+function CollectCoins()
     if not _G.AutoFarm then return end
-    for _, obj in pairs(Workspace:GetDescendants()) do
+    for _, obj in pairs(game:GetService("Workspace"):GetDescendants()) do
         if obj:IsA("Part") and obj.Name:match("Coin") then
+            local LP = game.Players.LocalPlayer
             if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
                 LP.Character.HumanoidRootPart.CFrame = obj.CFrame + Vector3.new(0, 2, 0)
                 task.wait(0.1)
@@ -394,49 +459,24 @@ local function CollectCoins()
     end
 end
 
-function checkFullBag()
-    if not _G.AutoReset then return end
-    local gui = LP.PlayerGui:FindFirstChild("MainGUI")
-    if gui and gui:FindFirstChild("Game") then
-        local coins = gui.Game:FindFirstChild("CoinBags")
-        if coins and coins.Container.SnowToken.CurrencyFrame.Icon.Coins.Text == "40" then
-            Notif:Notify("Мешок полон! Респавн...", 2, "info")
-            LP.Character.Humanoid.Health = 0
-            task.wait(2)
-            if _G.FlingMurderer then
-                local murderer = getMurderer()
-                if murderer then flingPlayer(murderer) end
-            end
-        end
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        task.wait(0.5)
-        if _G.ESPEnabled then CreateESP(player) end
-    end)
-end)
-
-RunService.RenderStepped:Connect(function()
+game:GetService("RunService").RenderStepped:Connect(function()
     if _G.AutoFarm then CollectCoins() end
-    if _G.AutoReset then checkFullBag() end
-    if _G.AimbotEnabled then ApplyAimbot() end
-    if _G.HitboxSize > 1 then ApplyHitbox() end
     
     if _G.ESPEnabled then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LP and player.Character and player.Character:FindFirstChild("Head") then
+        for _, player in pairs(game.Players:GetPlayers()) do
+            if player ~= game.Players.LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
                 if not ESPObjects[player] then CreateESP(player)
                 else
-                    local dist = (LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("HumanoidRootPart")) 
-                        and (player.Character.HumanoidRootPart.Position - LP.Character.HumanoidRootPart.Position).Magnitude or 0
-                    if dist <= _G.ESPRange then
-                        for _, obj in pairs(ESPObjects[player]) do
-                            if obj:IsA("BillboardGui") then
-                                for _, child in pairs(obj:GetChildren()) do
-                                    if child.Name == "" and child:IsA("TextLabel") and child.Position == UDim2.new(0, 0, 0.5, 0) then
-                                        child.Text = "Дист: " .. math.round(dist) .. "м"
+                    local LP = game.Players.LocalPlayer
+                    if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+                        local dist = (player.Character.HumanoidRootPart.Position - LP.Character.HumanoidRootPart.Position).Magnitude
+                        if dist <= _G.ESPRange then
+                            for _, obj in pairs(ESPObjects[player]) do
+                                if obj:IsA("BillboardGui") then
+                                    for _, child in pairs(obj:GetChildren()) do
+                                        if child.Name == "" and child:IsA("TextLabel") and child.Position == UDim2.new(0, 0, 0.5, 0) then
+                                            child.Text = "Дист: " .. math.round(dist) .. "м"
+                                        end
                                     end
                                 end
                             end
@@ -448,6 +488,18 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-Library:Watermark("🐍 SnakeHub | by YinYang")
-Notif:Notify("SnakeHub загружен! Используй GUI.", 3, "success")
-print("🐍 SnakeHub Ultimate загружен! Наслаждайся игрой!")
+game.Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if _G.ESPEnabled then CreateESP(player) end
+    end)
+end)
+
+OrionLib:MakeNotification({
+    Name = "🐍 SnakeHub",
+    Content = "Загружен! Полёт адаптирован для телефона.",
+    Time = 5
+})
+
+print("🐍 SnakeHub Ultimate загружен!")
+print("Функции: Автофарм | ESP | Авто-шот | Полёт (сенсор) | Флинг")
