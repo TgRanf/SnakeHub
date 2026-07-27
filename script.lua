@@ -4,8 +4,13 @@ _G.ESPRange = 100
 local Window = Library:CreateWindow({
     Name = "🐍 SnakeHub",
     LoadingTitle = "SnakeHub",
-    LoadingSubtitle = "ESP Roles",
+    LoadingSubtitle = "by YinYang",
     ToggleUIKeybind = Enum.KeyCode.K,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "SnakeHub",
+        FileName = "Settings"
+    }
 })
 local Tab = Window:CreateTab("Главная", 4483362458)
 local Section = Tab:CreateSection("ESP")
@@ -25,6 +30,10 @@ Section:CreateSlider({
         _G.ESPRange = value
     end
 })
+local InfoTab = Window:CreateTab("Инфо", 4483362458)
+local InfoSection = InfoTab:CreateSection("О скрипте")
+InfoSection:CreateLabel("Роли: 🟢 Невинный | 🔵 Шериф | 🔴 Убийца")
+InfoSection:CreateLabel("Нажми K для открытия меню")
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
