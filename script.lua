@@ -1,4 +1,4 @@
-local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Rayfield/main/source'))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/gen2'))()
 
 _G.ESPEnabled = false
 _G.FlyEnabled = false
@@ -7,62 +7,78 @@ _G.AimbotEnabled = false
 _G.NoclipEnabled = false
 
 local Window = Rayfield:CreateWindow({
-    Name = "🐍 SnakeHub",
-    LoadingTitle = "SnakeHub",
-    LoadingSubtitle = "by YinYang",
-    ConfigurationSaving = { Enabled = false }
+    name = "🐍 SnakeHub",
+    subtitle = "MM2 Ultimate",
+    theme = {
+        Background = Color3.fromRGB(8, 20, 8),
+        Header = Color3.fromRGB(0, 180, 70),
+        Text = Color3.fromRGB(200, 255, 200),
+        Element = Color3.fromRGB(15, 40, 15),
+        Accent = Color3.fromRGB(0, 255, 100)
+    }
 })
 
-local MainTab = Window:CreateTab("Главная", 4483362458)
+local MainTab = Window:CreateTab({ name = "Главная", icon = "home" })
 local Section = MainTab:CreateSection("Управление")
 
 Section:CreateToggle({
-    Name = "ESP Вкл",
-    CurrentValue = false,
-    Callback = function(Value) _G.ESPEnabled = Value end
+    name = "ESP Вкл",
+    currentvalue = false,
+    callback = function(Value)
+        _G.ESPEnabled = Value
+        if not Value then clearESP() end
+    end
 })
 
 Section:CreateToggle({
-    Name = "Полёт (WASD+Space)",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Полёт (WASD+Space)",
+    currentvalue = false,
+    callback = function(Value)
         _G.FlyEnabled = Value
         if Value then startFly() else stopFly() end
     end
 })
 
 Section:CreateToggle({
-    Name = "Авто-сбор монет",
-    CurrentValue = false,
-    Callback = function(Value) _G.AutoCollect = Value end
+    name = "Авто-сбор монет",
+    currentvalue = false,
+    callback = function(Value)
+        _G.AutoCollect = Value
+    end
 })
 
 Section:CreateToggle({
-    Name = "Аимбот",
-    CurrentValue = false,
-    Callback = function(Value) _G.AimbotEnabled = Value end
+    name = "Аимбот",
+    currentvalue = false,
+    callback = function(Value)
+        _G.AimbotEnabled = Value
+    end
 })
 
 Section:CreateToggle({
-    Name = "Ноклип",
-    CurrentValue = false,
-    Callback = function(Value)
+    name = "Ноклип",
+    currentvalue = false,
+    callback = function(Value)
         _G.NoclipEnabled = Value
         if Value then enableNoclip() else disableNoclip() end
     end
 })
 
-local InfoTab = Window:CreateTab("Инфо", 4483362458)
+local InfoTab = Window:CreateTab({ name = "Инфо", icon = "info" })
 InfoTab:CreateParagraph({
-    Title = "О скрипте",
-    Content = "🐍 SnakeHub для MM2\n\nФункции собраны из открытых исходников:\n• ESP показывает роли\n• Полёт (WASD+Space)\n• Авто-сбор монет\n• Аимбот\n• Ноклип"
+    title = "О скрипте",
+    content = "🐍 SnakeHub для MM2\n\nФункции:\n• ESP показывает роли\n• Полёт (WASD+Space)\n• Авто-сбор монет\n• Аимбот\n• Ноклип"
 })
 
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local ESPObjects = {}
 local noclipConnection
+local flyConnection
+local flySpeed = 50
+local flyLinearVelocity, flyAngularVelocity, flyAttachment
 
 function getRole(plr)
     local char = plr.Character
@@ -116,9 +132,6 @@ function clearESP()
     ESPObjects = {}
 end
 
-local flyBV, flyBG, flyConnection
-local flySpeed = 50
-
 function startFly()
     local char = player.Character
     if not char then return end
@@ -127,23 +140,26 @@ function startFly()
     if not hrp or not humanoid then return end
 
     humanoid.PlatformStand = true
-    flyBV = Instance.new("BodyVelocity")
-    flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    flyBV.Velocity = Vector3.new(0,0,0)
-    flyBV.Parent = hrp
 
-    flyBG = Instance.new("BodyGyro")
-    flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    flyBG.P = 9e4
-    flyBG.CFrame = hrp.CFrame
-    flyBG.Parent = hrp
+    flyAttachment = Instance.new("Attachment")
+    flyAttachment.Parent = hrp
+
+    flyLinearVelocity = Instance.new("LinearVelocity")
+    flyLinearVelocity.MaxForce = 1e5
+    flyLinearVelocity.Attachment0 = flyAttachment
+    flyLinearVelocity.Parent = hrp
+
+    flyAngularVelocity = Instance.new("AngularVelocity")
+    flyAngularVelocity.MaxTorque = 1e9
+    flyAngularVelocity.Attachment0 = flyAttachment
+    flyAngularVelocity.Parent = hrp
 
     flyConnection = RunService.RenderStepped:Connect(function()
         if not _G.FlyEnabled then return end
         if not hrp or not hrp.Parent then return end
 
         local moveDir = Vector3.new()
-        local cam = workspace.CurrentCamera
+        local cam = Workspace.CurrentCamera
         local uis = game:GetService("UserInputService")
 
         if uis:IsKeyDown(Enum.KeyCode.W) then moveDir += cam.CFrame.LookVector end
@@ -154,15 +170,21 @@ function startFly()
         if uis:IsKeyDown(Enum.KeyCode.LeftControl) then moveDir -= Vector3.new(0,1,0) end
 
         if moveDir.Magnitude > 0 then moveDir = moveDir.Unit end
-        flyBV.Velocity = moveDir * flySpeed
-        flyBG.CFrame = cam.CFrame
+        flyLinearVelocity.Velocity = moveDir * flySpeed
+        
+        local targetCF = CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector)
+        local currentCF = hrp.CFrame
+        local delta = targetCF:ToObjectSpace(currentCF)
+        local angle, axis = delta:ToAxisAngle()
+        flyAngularVelocity.AngularVelocity = axis * angle / 0.016
     end)
 end
 
 function stopFly()
     if flyConnection then flyConnection:Disconnect() flyConnection = nil end
-    if flyBV then flyBV:Destroy() flyBV = nil end
-    if flyBG then flyBG:Destroy() flyBG = nil end
+    if flyLinearVelocity then flyLinearVelocity:Destroy() flyLinearVelocity = nil end
+    if flyAngularVelocity then flyAngularVelocity:Destroy() flyAngularVelocity = nil end
+    if flyAttachment then flyAttachment:Destroy() flyAttachment = nil end
     local char = player.Character
     if char then
         local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -170,9 +192,39 @@ function stopFly()
     end
 end
 
+function enableNoclip()
+    if noclipConnection then noclipConnection:Disconnect() end
+    noclipConnection = RunService.Stepped:Connect(function()
+        if not _G.NoclipEnabled then return end
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end)
+end
+
+function disableNoclip()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+    local char = player.Character
+    if char then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
+
 local function collectCoins()
     if not _G.AutoCollect then return end
-    for _, obj in pairs(workspace:GetDescendants()) do
+    for _, obj in pairs(Workspace:GetDescendants()) do
         if obj:IsA("Part") and obj.Name:match("Coin") then
             if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                 player.Character.HumanoidRootPart.CFrame = obj.CFrame + Vector3.new(0, 2, 0)
@@ -186,7 +238,7 @@ local function canSee(target)
     local origin = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
     if not origin then return false end
     local ray = Ray.new(origin.Position, (target.Position - origin.Position).Unit * 100)
-    local hit, position = workspace:FindPartOnRay(ray, player.Character)
+    local hit, position = Workspace:FindPartOnRay(ray, player.Character)
     if hit then
         local distance = (position - origin.Position).Magnitude
         local targetDistance = (target.Position - origin.Position).Magnitude
@@ -217,40 +269,8 @@ local function applyAimbot()
         end
     end
     if target then
-        local camera = workspace.CurrentCamera
-        local targetPos = target.Position
-        local lookAt = CFrame.new(camera.CFrame.Position, targetPos)
-        camera.CFrame = camera.CFrame:Lerp(lookAt, 0.3)
-    end
-end
-
-local function enableNoclip()
-    if noclipConnection then noclipConnection:Disconnect() end
-    noclipConnection = RunService.Stepped:Connect(function()
-        if not _G.NoclipEnabled then return end
-        local char = player.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
-        end
-    end)
-end
-
-local function disableNoclip()
-    if noclipConnection then
-        noclipConnection:Disconnect()
-        noclipConnection = nil
-    end
-    local char = player.Character
-    if char then
-        for _, part in pairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = true
-            end
-        end
+        local camera = Workspace.CurrentCamera
+        camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
     end
 end
 
