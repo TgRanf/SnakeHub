@@ -1,32 +1,28 @@
--- ============================================
--- SNAKEHUB MOBILE v4 (БЕЗ ВНЕШНИХ БИБЛИОТЕК)
--- Работает в Delta без интернета
--- ============================================
-
--- 1. НАСТРОЙКИ
 _G.ESPEnabled = false
-_G.ESPMode = "Roles"  -- "Simple" или "Roles"
+_G.ESPMode = "Roles"
 _G.ESPRange = 100
 _G.AntiKick = true
 _G.SoftBypass = true
 
--- 2. СОЗДАНИЕ UI ВРУЧНУЮ (без библиотек)
-local screenSize = game:GetService("GuiService"):GetScreenSize()
+local coreGui = game:GetService("CoreGui")
+for _, child in pairs(coreGui:GetChildren()) do
+    if child.Name == "SnakeHubGUI" then child:Destroy() end
+end
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "SnakeHubGUI"
-gui.Parent = game:GetService("CoreGui")
+gui.Parent = coreGui
+gui.Enabled = false
 
--- Основное окно (адаптивное)
+local screenSize = game:GetService("GuiService"):GetScreenSize()
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, math.min(350, screenSize.X * 0.85), 0, math.min(450, screenSize.Y * 0.8))
+frame.Size = UDim2.new(0, math.min(380, screenSize.X * 0.9), 0, math.min(480, screenSize.Y * 0.85))
 frame.Position = UDim2.new(0.5, -frame.Size.X.Scale * 0.5, 0.5, -frame.Size.Y.Scale * 0.5)
 frame.BackgroundColor3 = Color3.fromRGB(10, 25, 10)
 frame.BorderSizePixel = 0
 frame.ClipsDescendants = true
 frame.Parent = gui
-frame.Visible = false  -- скрыто по умолчанию
 
--- Градиент
 local grad = Instance.new("UIGradient")
 grad.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 25, 10)),
@@ -35,10 +31,8 @@ grad.Color = ColorSequence.new({
 })
 grad.Parent = frame
 
--- Заголовок
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 50)
-title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Text = "🐍 SnakeHub"
 title.TextColor3 = Color3.fromRGB(200, 255, 200)
@@ -46,14 +40,12 @@ title.TextScaled = true
 title.Font = Enum.Font.GothamBold
 title.Parent = frame
 
--- Линия-разделитель
 local line = Instance.new("Frame")
 line.Size = UDim2.new(0.9, 0, 0, 2)
 line.Position = UDim2.new(0.05, 0, 0, 50)
 line.BackgroundColor3 = Color3.fromRGB(0, 200, 80)
 line.Parent = frame
 
--- Создание кнопок (функция)
 local function createToggle(yPos, name, default, callback)
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(0.9, 0, 0, 45)
@@ -95,10 +87,9 @@ local function createToggle(yPos, name, default, callback)
     return btn
 end
 
--- Создание слайдера
 local function createSlider(yPos, name, min, max, default, callback)
     local bg = Instance.new("Frame")
-    bg.Size = UDim2.new(0.9, 0, 0, 50)
+    bg.Size = UDim2.new(0.9, 0, 0, 55)
     bg.Position = UDim2.new(0.05, 0, 0, yPos)
     bg.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
     bg.BorderSizePixel = 1
@@ -137,13 +128,9 @@ local function createSlider(yPos, name, min, max, default, callback)
     drag.Parent = slider
     
     local dragging = false
-    drag.MouseButton1Down:Connect(function()
-        dragging = true
-    end)
+    drag.MouseButton1Down:Connect(function() dragging = true end)
     game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
     end)
     game:GetService("RunService").RenderStepped:Connect(function()
         if dragging then
@@ -160,56 +147,52 @@ local function createSlider(yPos, name, min, max, default, callback)
     return slider
 end
 
--- Кнопки управления
 createToggle(60, "ESP Вкл", false, function(s) _G.ESPEnabled = s end)
 
--- Выпадающий список (вручную)
-local dropdownBg = Instance.new("Frame")
-dropdownBg.Size = UDim2.new(0.9, 0, 0, 45)
-dropdownBg.Position = UDim2.new(0.05, 0, 0, 115)
-dropdownBg.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
-dropdownBg.BorderSizePixel = 1
-dropdownBg.BorderColor3 = Color3.fromRGB(0, 200, 80)
-dropdownBg.Parent = frame
+local dropBg = Instance.new("Frame")
+dropBg.Size = UDim2.new(0.9, 0, 0, 45)
+dropBg.Position = UDim2.new(0.05, 0, 0, 115)
+dropBg.BackgroundColor3 = Color3.fromRGB(20, 40, 20)
+dropBg.BorderSizePixel = 1
+dropBg.BorderColor3 = Color3.fromRGB(0, 200, 80)
+dropBg.Parent = frame
 
-local ddLabel = Instance.new("TextLabel")
-ddLabel.Size = UDim2.new(0.6, 0, 1, 0)
-ddLabel.Position = UDim2.new(0.05, 0, 0, 0)
-ddLabel.BackgroundTransparency = 1
-ddLabel.Text = "Режим ESP: По ролям"
-ddLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
-ddLabel.TextScaled = true
-ddLabel.TextXAlignment = Enum.TextXAlignment.Left
-ddLabel.Font = Enum.Font.Gotham
-ddLabel.Parent = dropdownBg
+local dropLabel = Instance.new("TextLabel")
+dropLabel.Size = UDim2.new(0.6, 0, 1, 0)
+dropLabel.Position = UDim2.new(0.05, 0, 0, 0)
+dropLabel.BackgroundTransparency = 1
+dropLabel.Text = "Режим ESP: По ролям"
+dropLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+dropLabel.TextScaled = true
+dropLabel.TextXAlignment = Enum.TextXAlignment.Left
+dropLabel.Font = Enum.Font.Gotham
+dropLabel.Parent = dropBg
 
-local ddBtn = Instance.new("TextButton")
-ddBtn.Size = UDim2.new(0.25, 0, 0.7, 0)
-ddBtn.Position = UDim2.new(0.7, 0, 0.15, 0)
-ddBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 60)
-ddBtn.Text = "▼"
-ddBtn.TextColor3 = Color3.new(1,1,1)
-ddBtn.TextScaled = true
-ddBtn.Font = Enum.Font.GothamBold
-ddBtn.BorderSizePixel = 0
-ddBtn.Parent = dropdownBg
+local dropBtn = Instance.new("TextButton")
+dropBtn.Size = UDim2.new(0.25, 0, 0.7, 0)
+dropBtn.Position = UDim2.new(0.7, 0, 0.15, 0)
+dropBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 60)
+dropBtn.Text = "▼"
+dropBtn.TextColor3 = Color3.new(1,1,1)
+dropBtn.TextScaled = true
+dropBtn.Font = Enum.Font.GothamBold
+dropBtn.BorderSizePixel = 0
+dropBtn.Parent = dropBg
 
 local options = {"Простой (все зелёные)", "По ролям"}
 local currentOption = 2
-ddBtn.MouseButton1Click:Connect(function()
+dropBtn.MouseButton1Click:Connect(function()
     currentOption = currentOption % 2 + 1
     local opt = options[currentOption]
-    ddLabel.Text = "Режим ESP: " .. opt
+    dropLabel.Text = "Режим ESP: " .. opt
     _G.ESPMode = (opt == "Простой (все зелёные)") and "Simple" or "Roles"
 end)
 
--- Слайдер
 createSlider(170, "Дальность ESP", 0, 200, 100, function(v) _G.ESPRange = v end)
 
--- Инфо-метка
 local info = Instance.new("TextLabel")
 info.Size = UDim2.new(0.9, 0, 0, 40)
-info.Position = UDim2.new(0.05, 0, 0, 230)
+info.Position = UDim2.new(0.05, 0, 0, 235)
 info.BackgroundTransparency = 1
 info.Text = "Anti-Kick + Bypass активны\nДля телефона/Delta"
 info.TextColor3 = Color3.fromRGB(150, 200, 150)
@@ -217,7 +200,6 @@ info.TextScaled = true
 info.Font = Enum.Font.Gotham
 info.Parent = frame
 
--- Кнопка закрытия
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 40, 0, 40)
 closeBtn.Position = UDim2.new(1, -45, 0, 5)
@@ -229,10 +211,9 @@ closeBtn.Font = Enum.Font.GothamBold
 closeBtn.BorderSizePixel = 0
 closeBtn.Parent = frame
 closeBtn.MouseButton1Click:Connect(function()
-    frame.Visible = false
+    gui.Enabled = false
 end)
 
--- Кнопка открытия на экране
 local openBtn = Instance.new("TextButton")
 openBtn.Size = UDim2.new(0, 70, 0, 70)
 openBtn.Position = UDim2.new(0, 10, 1, -80)
@@ -244,12 +225,9 @@ openBtn.Font = Enum.Font.GothamBold
 openBtn.BorderSizePixel = 0
 openBtn.Parent = gui
 openBtn.MouseButton1Click:Connect(function()
-    frame.Visible = not frame.Visible
+    gui.Enabled = not gui.Enabled
 end)
 
--- ============================================
--- 3. ESP (полностью рабочий)
--- ============================================
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
@@ -260,10 +238,8 @@ local function getRole(player)
     if char then
         for _, tool in pairs(char:GetChildren()) do
             if tool:IsA("Tool") then
-                if tool.Name:match("Knife") or tool.Name:match("Dagger") then
-                    return "Murderer"
-                elseif tool.Name:match("Gun") or tool.Name:match("Pistol") then
-                    return "Sheriff"
+                if tool.Name:match("Knife") or tool.Name:match("Dagger") then return "Murderer"
+                elseif tool.Name:match("Gun") or tool.Name:match("Pistol") then return "Sheriff"
                 end
             end
         end
@@ -310,7 +286,11 @@ local function createESP(player)
     local label = Instance.new("TextLabel", bill)
     label.Size = UDim2.new(1,0,1,0)
     label.BackgroundTransparency = 1
-    label.Text = _G.ESPMode == "Simple" and player.Name or (player.Name .. " [" .. getRole(player) .. "]")
+    if _G.ESPMode == "Simple" then
+        label.Text = player.Name
+    else
+        label.Text = player.Name .. " [" .. getRole(player) .. "]"
+    end
     label.TextColor3 = color
     label.TextScaled = true
     label.Font = Enum.Font.GothamBold
@@ -348,9 +328,6 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ============================================
--- 4. ANTI-KICK + BYPASS (активны)
--- ============================================
 local function antiKick()
     local oldKick = LP.Kick
     LP.Kick = function(self, msg)
@@ -383,4 +360,4 @@ LP.OnTeleport:Connect(function()
     end
 end)
 
-print("SnakeHub v4 загружен. Нажми 🐍 на экране.")
+print("SnakeHub загружен. Нажми 🐍 на экране.")
