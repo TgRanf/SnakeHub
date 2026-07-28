@@ -1,5 +1,5 @@
 -- ====================================================================
--- MM2 Crystal UI Pro (Crystal Theme + Smart Auto-Farm + Perfect Fling)
+-- MM2 Crystal UI Pro (Instant Role Hook + Gun ESP + Tornado Fling)
 -- ====================================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -11,7 +11,7 @@ local Window = Rayfield:CreateWindow({
    ConfigurationSaving = { Enabled = false },
    Discord = { Enabled = false },
    KeySystem = false,
-   Theme = "Amethyst" -- Красивая фиолетово-кристальная тема интерфейса
+   Theme = "Amethyst"
 })
 
 local MainTab = Window:CreateTab("Подсветка (ESP)", 4483362458)
@@ -26,7 +26,6 @@ local LocalPlayer = Players.LocalPlayer
 local ESP_ENABLED = false
 local GUN_ESP_ENABLED = false
 
--- Переменные автофарма
 local AUTO_FARM_ENABLED = false
 local AUTO_RESET_ENABLED = true
 local FARM_SPEED = 30 
@@ -38,73 +37,106 @@ local COLOR_MURDERER = Color3.fromRGB(255, 0, 0)
 local COLOR_GUN_DROP = Color3.fromRGB(0, 255, 0)   
 
 ----------------------------------------------------------------------
--- 🔍 ОПРЕДЕЛЕНИЕ РОЛЕЙ
+-- ⚡ УЛУЧШЕННЫЙ МГНОВЕННЫЙ ПЕРЕХВАТ РОЛЕЙ
 ----------------------------------------------------------------------
 
-local function getPlayerColor(player)
-	if not player then return COLOR_INNOCENT end
-	local character = player.Character
-	local backpack = player:FindFirstChild("Backpack")
+local playerRoles = {} -- Кэш ролей
 
-	local roleAttr = player:GetAttribute("Role") or player:GetAttribute("role") or (character and character:GetAttribute("Role"))
-	if roleAttr then
-		local strRole = tostring(roleAttr):lower()
-		if strRole:find("murder") or strRole:find("killer") then return COLOR_MURDERER end
-		if strRole:find("sheriff") or strRole:find("hero") or strRole:find("герой") then return COLOR_SHERIFF end
-		if strRole:find("innocent") then return COLOR_INNOCENT end
-	end
-
-	for _, child in ipairs(player:GetChildren()) do
-		if child:IsA("StringValue") or child:IsA("BoolValue") then
-			local valName = child.Name:lower()
-			local valData = tostring(child.Value):lower()
-			if valData:find("murder") or valName:find("murder") then return COLOR_MURDERER end
-			if valData:find("sheriff") or valData:find("hero") or valData:find("герой") or valName:find("sheriff") or valName:find("hero") then return COLOR_SHERIFF end
-		end
-	end
-
-	local function hasWeapon(keywords)
-		local searchLocations = {character, backpack}
-		for _, location in ipairs(searchLocations) do
-			if location then
-				for _, tool in ipairs(location:GetChildren()) do
-					if tool:IsA("Tool") then
-						local name = tool.Name:lower()
-						for _, keyword in ipairs(keywords) do
-							if name:find(keyword) then return true end
-						end
-					end
-				end
-			end
-		end
-		return false
-	end
-
-	if hasWeapon({"knife", "нож", "blade", "sword"}) then
+local function detectItemRole(item)
+	if not item or not item:IsA("Tool") then return nil end
+	local name = item.Name:lower()
+	if name:find("knife") or name:find("нож") or name:find("blade") or name:find("sword") then
 		return COLOR_MURDERER
-	elseif hasWeapon({"gun", "revolver", "pistol", "пест", "пистолет", "револьвер"}) then
+	elseif name:find("gun") or name:find("revolver") or name:find("pistol") or name:find("пест") or name:find("пистолет") then
 		return COLOR_SHERIFF
-	else
-		return COLOR_INNOCENT
 	end
+	return nil
 end
+
+local function updatePlayerRole(player)
+	if not player then return end
+
+	-- 1. Сначала проверяем стандартные атрибуты, если игра их использует
+	local attrRole = player:GetAttribute("Role") or player:GetAttribute("PlayerRole")
+	if attrRole then
+		local lowerAttr = tostring(attrRole):lower()
+		if lowerAttr:find("murder") or lowerAttr:find("убийца") then
+			playerRoles[player] = COLOR_MURDERER
+			return
+		elseif lowerAttr:find("sheriff") or lowerAttr:find("шериф") then
+			playerRoles[player] = COLOR_SHERIFF
+			return
+		end
+	end
+
+	-- 2. Проверяем инвентарь (Backpack и Character)
+	local role = COLOR_INNOCENT
+	local char = player.Character
+	local bp = player:FindFirstChild("Backpack")
+
+	if char then
+		for _, child in ipairs(char:GetChildren()) do
+			local detected = detectItemRole(child)
+			if detected then role = detected break end
+		end
+	end
+
+	if role == COLOR_INNOCENT and bp then
+		for _, child in ipairs(bp:GetChildren()) do
+			local detected = detectItemRole(child)
+			if detected then role = detected break end
+		end
+	end
+
+	playerRoles[player] = role
+end
+
+-- Подписка на события инвентаря и изменения атрибутов
+local function hookPlayerInventory(player)
+	playerRoles[player] = COLOR_INNOCENT
+
+	local function bindContainer(container)
+		if not container then return end
+		container.ChildAdded:Connect(function(child)
+			local detected = detectItemRole(child)
+			if detected then
+				playerRoles[player] = detected
+			end
+		end)
+	end
+
+	if player.Character then bindContainer(player.Character) end
+	local bp = player:FindFirstChild("Backpack")
+	if bp then bindContainer(bp) end
+
+	player.CharacterAdded:Connect(function(char)
+		playerRoles[player] = COLOR_INNOCENT
+		bindContainer(char)
+		task.spawn(function()
+			local newBp = player:WaitForChild("Backpack", 5)
+			if newBp then bindContainer(newBp) end
+		end)
+	end)
+
+	-- Отслеживание изменений атрибутов (если сервер передает роли через них)
+	player.AttributeChanged:Connect(function()
+		updatePlayerRole(player)
+	end)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do hookPlayerInventory(p) end
+Players.PlayerAdded:Connect(hookPlayerInventory)
 
 ----------------------------------------------------------------------
 -- 👁️ ESP ИГРОКОВ
 ----------------------------------------------------------------------
-
-local function removeESP(player)
-	if player.Character and player.Character:FindFirstChild("RoleESP") then
-		player.Character.RoleESP:Destroy()
-	end
-end
 
 local function applyESP(player)
 	if player == LocalPlayer then return end
 
 	local function setupCharacter(char)
 		if not char then return end
-		removeESP(player)
+		if char:FindFirstChild("RoleESP") then char.RoleESP:Destroy() end
 		if not ESP_ENABLED then return end
 
 		local highlight = Instance.new("Highlight")
@@ -115,14 +147,19 @@ local function applyESP(player)
 		highlight.FillTransparency = 0.5
 		highlight.OutlineTransparency = 0
 
-		task.spawn(function()
-			while char and char.Parent and highlight and highlight.Parent and ESP_ENABLED do
-				local color = getPlayerColor(player)
-				highlight.FillColor = color
-				highlight.OutlineColor = color
-				task.wait(0.4)
+		local conn
+		conn = RunService.RenderStepped:Connect(function()
+			if not ESP_ENABLED or not highlight.Parent or not char.Parent then
+				if conn then conn:Disconnect() end
+				if highlight then highlight:Destroy() end
+				return
 			end
-			if not ESP_ENABLED and highlight then highlight:Destroy() end
+			
+			-- Периодически обновляем роль на случай сброса
+			updatePlayerRole(player)
+			local color = playerRoles[player] or COLOR_INNOCENT
+			highlight.FillColor = color
+			highlight.OutlineColor = color
 		end)
 	end
 
@@ -131,52 +168,24 @@ local function applyESP(player)
 end
 
 ----------------------------------------------------------------------
--- 🔫 ESP ВЫПАВШЕГО ПИСТОЛЕТА
+-- 🔫 СТРОГИЙ ESP ВЫПАВШЕГО ПИСТОЛЕТА (ТОЛЬКО GUNDROP)
 ----------------------------------------------------------------------
-
-local function isPlayerCharacter(obj)
-	local ancestor = obj
-	while ancestor and ancestor ~= Workspace do
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Character == ancestor then return true end
-		end
-		ancestor = ancestor.Parent
-	end
-	return false
-end
 
 local function checkAndHighlightGun(object)
 	if not object then return end
-	if isPlayerCharacter(object) then
-		if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
-		if object:FindFirstChild("GunText") then object.GunText:Destroy() end
-		return
-	end
 
-	local name = object.Name:lower()
-	local isGun = name:find("gun") or name:find("pistol") or name:find("revolver") or name:find("пест") or name:find("пистолет") or name:find("gundrop")
-
-	if isGun then
-		local adorneePart = nil
-		if object:IsA("Tool") then
-			adorneePart = object:FindFirstChild("Handle") or object:FindFirstChildWhichIsA("BasePart")
-		elseif object:IsA("BasePart") then
-			adorneePart = object
-		elseif object:IsA("Model") then
-			adorneePart = object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")
-		end
-
+	if object.Name == "GunDrop" and object:IsDescendantOf(Workspace) then
 		if not GUN_ESP_ENABLED then
 			if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
 			if object:FindFirstChild("GunText") then object.GunText:Destroy() end
 			return
 		end
 
-		if adorneePart and not adorneePart:FindFirstChild("GunHighlight") then
+		if not object:FindFirstChild("GunHighlight") then
 			local highlight = Instance.new("Highlight")
 			highlight.Name = "GunHighlight"
-			highlight.Adornee = adorneePart
-			highlight.Parent = adorneePart
+			highlight.Adornee = object
+			highlight.Parent = object
 			highlight.FillColor = COLOR_GUN_DROP
 			highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
 			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -184,8 +193,8 @@ local function checkAndHighlightGun(object)
 
 			local billboard = Instance.new("BillboardGui")
 			billboard.Name = "GunText"
-			billboard.Adornee = adorneePart
-			billboard.Parent = adorneePart
+			billboard.Adornee = object
+			billboard.Parent = object
 			billboard.Size = UDim2.new(0, 80, 0, 30)
 			billboard.StudsOffset = Vector3.new(0, 2, 0)
 			billboard.AlwaysOnTop = true
@@ -194,7 +203,7 @@ local function checkAndHighlightGun(object)
 			label.Parent = billboard
 			label.Size = UDim2.new(1, 0, 1, 0)
 			label.BackgroundTransparency = 1
-			label.Text = "GUN 🔫"
+			label.Text = "GUN DROP 🔫"
 			label.TextColor3 = COLOR_GUN_DROP
 			label.TextStrokeTransparency = 0
 			label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
@@ -204,26 +213,18 @@ local function checkAndHighlightGun(object)
 	end
 end
 
-local function scanForGuns()
-	for _, item in ipairs(Workspace:GetDescendants()) do checkAndHighlightGun(item) end
-end
-
-local function clearGunESP()
-	for _, item in ipairs(Workspace:GetDescendants()) do
-		if item:FindFirstChild("GunHighlight") then item.GunHighlight:Destroy() end
-		if item:FindFirstChild("GunText") then item.GunText:Destroy() end
-	end
-end
-
-Workspace.DescendantAdded:Connect(function(item)
+RunService.Heartbeat:Connect(function()
 	if GUN_ESP_ENABLED then
-		task.wait(0.2)
-		checkAndHighlightGun(item)
+		for _, item in ipairs(Workspace:GetDescendants()) do
+			if item.Name == "GunDrop" then
+				checkAndHighlightGun(item)
+			end
+		end
 	end
 end)
 
 ----------------------------------------------------------------------
--- 💰 УМНЫЙ АВТОФАРМ И ИСПРАВЛЕННЫЙ ФЛИНГ С ВОЗВРАТОМ
+-- 💰 УМНЫЙ АВТОФАРМ И МОЩНЫЙ ФЛИНГ
 ----------------------------------------------------------------------
 
 local function isBagFull()
@@ -233,17 +234,10 @@ local function isBagFull()
 			for _, desc in ipairs(mainGui:GetDescendants()) do
 				if desc:IsA("TextLabel") or desc:IsA("TextButton") then
 					local text = desc.Text:lower()
-					-- Проверка на текстовые уведомления о полном мешке
-					if text:find("full") or text:find("полон") then
-						return true
-					end
-					-- Универсальная проверка для дроби (например 10/10, 15/15, 40/40, 50/50)
+					if text:find("full") or text:find("полон") then return true end
 					local cur, max = text:match("(%d+)%s*/%s*(%d+)")
-					if cur and max then
-						local cNum, mNum = tonumber(cur), tonumber(max)
-						if cNum and mNum and cNum >= mNum and mNum > 0 then
-							return true
-						end
+					if cur and max and tonumber(cur) >= tonumber(max) and tonumber(max) > 0 then
+						return true
 					end
 				end
 			end
@@ -252,43 +246,27 @@ local function isBagFull()
 	return success and result or false
 end
 
-local function getMurdererPosition()
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and getPlayerColor(player) == COLOR_MURDERER then
-			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				return player.Character.HumanoidRootPart.Position
-			end
+local function getClosestSafeCoin()
+	local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return nil end
+
+	local murdererPos = nil
+	for p, roleColor in pairs(playerRoles) do
+		if p ~= LocalPlayer and roleColor == COLOR_MURDERER and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+			murdererPos = p.Character.HumanoidRootPart.Position
 		end
 	end
-	return nil
-end
-
-local function getClosestSafeCoin()
-	local character = LocalPlayer.Character
-	if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
-	local hrp = character.HumanoidRootPart
-	local murdererPos = getMurdererPosition()
 
 	local closestCoin = nil
-	local shortestDistance = math.huge
+	local shortestDist = math.huge
 
 	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("BasePart") then
-			local name = obj.Name:lower()
-			if name:find("coin") or name:find("монет") then
-				local coinPos = obj.Position
-				local isSafe = true
-
-				if murdererPos and (coinPos - murdererPos).Magnitude < 20 then
-					isSafe = false
-				end
-
-				if isSafe then
-					local dist = (hrp.Position - coinPos).Magnitude
-					if dist < shortestDistance then
-						shortestDistance = dist
-						closestCoin = obj
-					end
+		if obj:IsA("BasePart") and (obj.Name:lower():find("coin") or obj.Name:lower():find("монет")) then
+			if not (murdererPos and (obj.Position - murdererPos).Magnitude < 20) then
+				local dist = (hrp.Position - obj.Position).Magnitude
+				if dist < shortestDist then
+					shortestDist = dist
+					closestCoin = obj
 				end
 			end
 		end
@@ -296,48 +274,44 @@ local function getClosestSafeCoin()
 	return closestCoin
 end
 
--- Флинг убийцы с возвратом на исходную точку
 local function flingMurderer()
 	local murderer = nil
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player ~= LocalPlayer and getPlayerColor(player) == COLOR_MURDERER then
-			murderer = player
+	for p, roleColor in pairs(playerRoles) do
+		if p ~= LocalPlayer and roleColor == COLOR_MURDERER then
+			murderer = p
 			break
 		end
 	end
 
-	if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+	local char = LocalPlayer.Character
+	if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
+		local hrp = char.HumanoidRootPart
 		local targetHrp = murderer.Character.HumanoidRootPart
-		local character = LocalPlayer.Character
-		if character and character:FindFirstChild("HumanoidRootPart") then
-			local hrp = character.HumanoidRootPart
-			local humanoid = character.Humanoid
-			
-			-- Сохраняем текущую позицию игрока до телепортации
-			local oldPos = hrp.CFrame
-			
-			humanoid.PlatformStand = false
-			
-			local startTime = tick()
-			local connection
-			connection = RunService.Heartbeat:Connect(function()
-				if not murderer.Character or not murderer.Character:FindFirstChild("HumanoidRootPart") then return end
-				-- Быстро кружимся вокруг убийцы и разгоняем физику для флинга
-				local angle = tick() * 35
-				local offset = CFrame.new(math.cos(angle) * 2.5, 0, math.sin(angle) * 2.5)
-				hrp.CFrame = targetHrp.CFrame * offset
-				hrp.AssemblyLinearVelocity = Vector3.new(50000, 50000, 50000)
-				hrp.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
-			end)
-			
-			-- Длительность флинга (1.5 секунды)
-			task.wait(1.5)
-			if connection then connection:Disconnect() end
-			
-			-- Сбрасываем скорость и возвращаем игрока обратно на его место
+		local oldPos = hrp.CFrame
+		
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then part.CanCollide = false end
+		end
+		
+		char.Humanoid.PlatformStand = true
+
+		local flingConn = RunService.Heartbeat:Connect(function()
+			if not targetHrp or not targetHrp.Parent then return end
+			hrp.CFrame = targetHrp.CFrame
 			hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-			hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-			hrp.CFrame = oldPos
+			hrp.AssemblyAngularVelocity = Vector3.new(0, 99999, 0)
+		end)
+
+		task.wait(1.5)
+		flingConn:Disconnect()
+
+		hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+		hrp.CFrame = oldPos
+		
+		char.Humanoid.PlatformStand = false
+		for _, part in ipairs(char:GetDescendants()) do
+			if part:IsA("BasePart") then part.CanCollide = true end
 		end
 	end
 end
@@ -346,60 +320,40 @@ task.spawn(function()
 	while true do
 		task.wait(0.1)
 		if AUTO_FARM_ENABLED then
-			local character = LocalPlayer.Character
-			if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") then
-				local hrp = character.HumanoidRootPart
-				local humanoid = character.Humanoid
+			local char = LocalPlayer.Character
+			if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
+				local hrp = char.HumanoidRootPart
 
-				-- Если мешок полон (10/10, 15/15, 40/40, 50/50 или статус Full)
 				if AUTO_RESET_ENABLED and isBagFull() then
-					humanoid.PlatformStand = false
+					char.Humanoid.PlatformStand = false
 					if currentTween then currentTween:Cancel() end
 					
-					-- Делаем флинг убийцы и возвращаемся назад
 					flingMurderer()
-					task.wait(1)
 					
-					-- Ждем начала следующего раунда / очистки мешка
-					while isBagFull() and AUTO_FARM_ENABLED do
-						task.wait(1)
-					end
+					while isBagFull() and AUTO_FARM_ENABLED do task.wait(1) end
 					continue
 				end
 
 				local coin = getClosestSafeCoin()
 				if coin then
-					humanoid.PlatformStand = true
-					local targetPos = coin.Position
-					local distance = (targetPos - hrp.Position).Magnitude
+					char.Humanoid.PlatformStand = true
+					local dist = (coin.Position - hrp.Position).Magnitude
+					local time = math.min(dist / FARM_SPEED, 1.2)
 					
-					local timeToTravel = math.min(distance / FARM_SPEED, 1.2)
-					
-					if timeToTravel > 0.05 then
+					if time > 0.05 then
 						if currentTween then currentTween:Cancel() end
-						local tweenInfo = TweenInfo.new(timeToTravel, Enum.EasingStyle.Linear)
-						currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+						currentTween = TweenService:Create(hrp, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = CFrame.new(coin.Position)})
 						currentTween:Play()
 						
-						local elapsed = 0
-						while elapsed < timeToTravel and AUTO_FARM_ENABLED and coin and coin.Parent do
-							task.wait(0.05)
-							elapsed = elapsed + 0.05
+						local el = 0
+						while el < time and AUTO_FARM_ENABLED and coin and coin.Parent do
+							task.wait(0.05); el += 0.05
 						end
 					end
 				else
-					humanoid.PlatformStand = false
+					char.Humanoid.PlatformStand = false
 					if currentTween then currentTween:Cancel() end
 				end
-			end
-		else
-			local character = LocalPlayer.Character
-			if character and character:FindFirstChild("Humanoid") then
-				character.Humanoid.PlatformStand = false
-			end
-			if currentTween then 
-				currentTween:Cancel() 
-				currentTween = nil
 			end
 		end
 	end
@@ -410,43 +364,46 @@ end)
 ----------------------------------------------------------------------
 
 MainTab:CreateToggle({
-   Name = "ESP Игроков (Роли)",
+   Name = "ESP Игроков (Мгновенный Перехват Ролей)",
    CurrentValue = false,
    Flag = "PlayerESP",
    Callback = function(Value)
       ESP_ENABLED = Value
-      for _, player in ipairs(Players:GetPlayers()) do
-          if Value then applyESP(player) else removeESP(player) end
+      for _, p in ipairs(Players:GetPlayers()) do
+          if Value then applyESP(p) else 
+          	if p.Character and p.Character:FindFirstChild("RoleESP") then p.Character.RoleESP:Destroy() end
+          end
       end
    end,
 })
 
 MainTab:CreateToggle({
-   Name = "ESP Выпавшего Пистолета",
+   Name = "ESP Упавшего Пистолета (GunDrop)",
    CurrentValue = false,
    Flag = "GunESP",
    Callback = function(Value)
       GUN_ESP_ENABLED = Value
-      if Value then scanForGuns() else clearGunESP() end
+      if not Value then
+      	for _, item in ipairs(Workspace:GetDescendants()) do
+      		if item:FindFirstChild("GunHighlight") then item.GunHighlight:Destroy() end
+      		if item:FindFirstChild("GunText") then item.GunText:Destroy() end
+      	end
+      end
    end,
 })
 
 FarmTab:CreateToggle({
-   Name = "Умный Автофарм Монет",
+   Name = "Автофарм Монет",
    CurrentValue = false,
    Flag = "AutoFarmToggle",
-   Callback = function(Value)
-      AUTO_FARM_ENABLED = Value
-   end,
+   Callback = function(Value) AUTO_FARM_ENABLED = Value end,
 })
 
 FarmTab:CreateToggle({
-   Name = "Флинг убийцы при полном мешке + Возврат",
+   Name = "Флинг Убийцы при полном мешке + Возврат",
    CurrentValue = true,
    Flag = "AutoResetToggle",
-   Callback = function(Value)
-      AUTO_RESET_ENABLED = Value
-   end,
+   Callback = function(Value) AUTO_RESET_ENABLED = Value end,
 })
 
 FarmTab:CreateSlider({
@@ -456,11 +413,5 @@ FarmTab:CreateSlider({
    Suffix = "studs/s",
    CurrentValue = 30,
    Flag = "FarmSpeedSlider",
-   Callback = function(Value)
-      FARM_SPEED = Value
-   end,
+   Callback = function(Value) FARM_SPEED = Value end,
 })
-
-Players.PlayerAdded:Connect(function(player)
-    if ESP_ENABLED then applyESP(player) end
-end)
