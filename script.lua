@@ -1,5 +1,5 @@
 -- ====================================================================
--- MM2 Ultimate Helper (Rayfield UI + ESP + Gun Drop + Auto-Farm)
+-- MM2 Ultimate Helper (Rayfield UI + ESP + Gun Drop Fix + Auto-Farm)
 -- ====================================================================
 
 -- 1. Загрузка библиотеки Rayfield
@@ -29,16 +29,16 @@ local GUN_ESP_ENABLED = false
 
 -- Переменные для Автофарма
 local AUTO_FARM_ENABLED = false
-local FARM_SPEED = 50 -- Начальная скорость полета за монетами
+local FARM_SPEED = 50 -- Скорость полета за монетами
 
 -- Цветовая палитра
-local COLOR_INNOCENT = Color3.fromRGB(0, 255, 0)   -- Зеленый
-local COLOR_SHERIFF  = Color3.fromRGB(0, 150, 255) -- Синий
-local COLOR_MURDERER = Color3.fromRGB(255, 0, 0)   -- Красный
-local COLOR_GUN_DROP = Color3.fromRGB(0, 255, 0)   -- Ярко-зеленый для пушки
+local COLOR_INNOCENT = Color3.fromRGB(0, 255, 0)   -- Зеленый (Невиновный)
+local COLOR_SHERIFF  = Color3.fromRGB(0, 150, 255) -- Синий (Шериф / Герой)
+local COLOR_MURDERER = Color3.fromRGB(255, 0, 0)   -- Красный (Убийца)
+local COLOR_GUN_DROP = Color3.fromRGB(0, 255, 0)   -- Ярко-зеленый для пушки на полу
 
 ----------------------------------------------------------------------
--- 🔍 ЛОГИКА ОПРЕДЕЛЕНИЯ РОЛИ
+-- 🔍 ЛОГИКА ОПРЕДЕЛЕНИЯ РОЛИ (С учетом Героя)
 ----------------------------------------------------------------------
 
 local function getPlayerColor(player)
@@ -46,23 +46,26 @@ local function getPlayerColor(player)
 	local character = player.Character
 	local backpack = player:FindFirstChild("Backpack")
 
+	-- Проверка атрибутов (включая "hero" и "герой")
 	local roleAttr = player:GetAttribute("Role") or player:GetAttribute("role") or (character and character:GetAttribute("Role"))
 	if roleAttr then
 		local strRole = tostring(roleAttr):lower()
 		if strRole:find("murder") or strRole:find("killer") then return COLOR_MURDERER end
-		if strRole:find("sheriff") or strRole:find("hero") then return COLOR_SHERIFF end
+		if strRole:find("sheriff") or strRole:find("hero") or strRole:find("герой") then return COLOR_SHERIFF end
 		if strRole:find("innocent") then return COLOR_INNOCENT end
 	end
 
+	-- Проверка текстовых значений
 	for _, child in ipairs(player:GetChildren()) do
 		if child:IsA("StringValue") or child:IsA("BoolValue") then
 			local valName = child.Name:lower()
 			local valData = tostring(child.Value):lower()
 			if valData:find("murder") or valName:find("murder") then return COLOR_MURDERER end
-			if valData:find("sheriff") or valName:find("sheriff") then return COLOR_SHERIFF end
+			if valData:find("sheriff") or valData:find("hero") or valData:find("герой") or valName:find("sheriff") or valName:find("hero") then return COLOR_SHERIFF end
 		end
 	end
 
+	-- Проверка инвентаря / рук на наличие оружия
 	local function hasWeapon(keywords)
 		local searchLocations = {character, backpack}
 		for _, location in ipairs(searchLocations) do
@@ -143,41 +146,62 @@ local function checkAndHighlightGun(object)
 
 	local name = object.Name:lower()
 	local isGun = name:find("gun") or name:find("pistol") or name:find("revolver") or name:find("пест") or name:find("пистолет") or name:find("gundrop")
+	
 	local isEquippedByPlayer = object:FindFirstAncestorOfClass("Model") and object:FindFirstAncestorOfClass("Model"):FindFirstChildOfClass("Humanoid")
 
-	if isGun and not isEquippedByPlayer then
-		if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
-		if object:FindFirstChild("GunText") then object.GunText:Destroy() end
+	if isGun then
+		local adorneePart = nil
+		if object:IsA("Tool") then
+			adorneePart = object:FindFirstChild("Handle") or object:FindFirstChildWhichIsA("BasePart")
+		elseif object:IsA("BasePart") then
+			adorneePart = object
+		elseif object:IsA("Model") then
+			adorneePart = object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")
+		end
 
-		if not GUN_ESP_ENABLED then return end
+		if isEquippedByPlayer or not GUN_ESP_ENABLED then
+			if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
+			if object:FindFirstChild("GunText") then object.GunText:Destroy() end
+			if adorneePart then
+				if adorneePart:FindFirstChild("GunHighlight") then adorneePart.GunHighlight:Destroy() end
+				if adorneePart:FindFirstChild("GunText") then adorneePart.GunText:Destroy() end
+			end
+			return
+		end
 
-		local highlight = Instance.new("Highlight")
-		highlight.Name = "GunHighlight"
-		highlight.Adornee = object
-		highlight.Parent = object
-		highlight.FillColor = COLOR_GUN_DROP
-		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.FillTransparency = 0.3
+		if adorneePart then
+			if not adorneePart:FindFirstChild("GunHighlight") then
+				local highlight = Instance.new("Highlight")
+				highlight.Name = "GunHighlight"
+				highlight.Adornee = adorneePart
+				highlight.Parent = adorneePart
+				highlight.FillColor = COLOR_GUN_DROP
+				highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+				highlight.FillTransparency = 0.3
+			end
 
-		local billboard = Instance.new("BillboardGui")
-		billboard.Name = "GunText"
-		billboard.Adornee = object
-		billboard.Parent = object
-		billboard.Size = UDim2.new(0, 80, 0, 30)
-		billboard.StudsOffset = Vector3.new(0, 2, 0)
-		billboard.AlwaysOnTop = true
+			if not adorneePart:FindFirstChild("GunText") then
+				local billboard = Instance.new("BillboardGui")
+				billboard.Name = "GunText"
+				billboard.Adornee = adorneePart
+				billboard.Parent = adorneePart
+				billboard.Size = UDim2.new(0, 80, 0, 30)
+				billboard.StudsOffset = Vector3.new(0, 2, 0)
+				billboard.AlwaysOnTop = true
 
-		local label = Instance.new("TextLabel")
-		label.Parent = billboard
-		label.Size = UDim2.new(1, 0, 1, 0)
-		label.BackgroundTransparency = 1
-		label.Text = "GUN 🔫"
-		label.TextColor3 = COLOR_GUN_DROP
-		label.TextStrokeTransparency = 0
-		label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-		label.Font = Enum.Font.SourceSansBold
-		label.TextSize = 16
+				local label = Instance.new("TextLabel")
+				label.Parent = billboard
+				label.Size = UDim2.new(1, 0, 1, 0)
+				label.BackgroundTransparency = 1
+				label.Text = "GUN 🔫"
+				label.TextColor3 = COLOR_GUN_DROP
+				label.TextStrokeTransparency = 0
+				label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+				label.Font = Enum.Font.SourceSansBold
+				label.TextSize = 16
+			end
+		end
 	end
 end
 
@@ -191,6 +215,13 @@ local function clearGunESP()
 	for _, item in ipairs(Workspace:GetDescendants()) do
 		if item:FindFirstChild("GunHighlight") then item.GunHighlight:Destroy() end
 		if item:FindFirstChild("GunText") then item.GunText:Destroy() end
+		if item:IsA("Tool") then
+			local handle = item:FindFirstChild("Handle")
+			if handle then
+				if handle:FindFirstChild("GunHighlight") then handle.GunHighlight:Destroy() end
+				if handle:FindFirstChild("GunText") then handle.GunText:Destroy() end
+			end
+		end
 	end
 end
 
@@ -199,6 +230,10 @@ Workspace.DescendantAdded:Connect(function(item)
 		task.wait(0.2)
 		checkAndHighlightGun(item)
 	end
+end)
+
+Workspace.DescendantRemoving:Connect(function(item)
+	checkAndHighlightGun(item)
 end)
 
 ----------------------------------------------------------------------
@@ -213,7 +248,6 @@ local function getClosestCoin()
 	local closestCoin = nil
 	local shortestDistance = math.huge
 
-	-- Сканируем workspace в поисках монет (обычно содержат слово coin)
 	for _, obj in ipairs(Workspace:GetDescendants()) do
 		if obj:IsA("BasePart") then
 			local name = obj.Name:lower()
@@ -229,7 +263,6 @@ local function getClosestCoin()
 	return closestCoin
 end
 
--- Основной цикл автофарма (полет к монетам)
 task.spawn(function()
 	while true do
 		task.wait()
@@ -245,10 +278,8 @@ task.spawn(function()
 					local distance = direction.Magnitude
 					
 					if distance > 1 then
-						-- Плавное перемещение с учетом выбранной скорости
 						local step = math.min(distance, FARM_SPEED * 0.05)
 						hrp.CFrame = hrp.CFrame + (direction.Unit * step)
-						-- Убираем падение от гравитации во время полета
 						hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 					end
 				end
@@ -261,7 +292,6 @@ end)
 -- 📱 ЭЛЕМЕНТЫ УПРАВЛЕНИЯ (RAYFIELD UI)
 ----------------------------------------------------------------------
 
--- Вкладка ESP
 MainTab:CreateToggle({
    Name = "ESP Игроков (Подсветка ролей)",
    CurrentValue = false,
@@ -284,7 +314,6 @@ MainTab:CreateToggle({
    end,
 })
 
--- Вкладка Автофарм
 FarmTab:CreateToggle({
    Name = "Автофарм Монет (Полет)",
    CurrentValue = false,
@@ -306,7 +335,6 @@ FarmTab:CreateSlider({
    end,
 })
 
--- Авто-подключение новых игроков для ESP
 Players.PlayerAdded:Connect(function(player)
     if ESP_ENABLED then applyESP(player) end
 end)
