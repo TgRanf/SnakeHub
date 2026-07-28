@@ -1,5 +1,5 @@
 -- ====================================================================
--- MM2 Ultimate Helper (Rayfield UI + ESP + Gun Drop Fix + Auto-Farm)
+-- MM2 Ultimate Helper (Rayfield UI + ESP + Gun Drop Fix + Smooth Flight Auto-Farm)
 -- ====================================================================
 
 -- 1. Загрузка библиотеки Rayfield
@@ -22,6 +22,7 @@ local FarmTab = Window:CreateTab("Автофарм", 4483362458)
 -- Сервисы и переменные
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
 local ESP_ENABLED = false
@@ -29,7 +30,8 @@ local GUN_ESP_ENABLED = false
 
 -- Переменные для Автофарма
 local AUTO_FARM_ENABLED = false
-local FARM_SPEED = 50 -- Скорость полета за монетами
+local FARM_SPEED = 25 -- Скорость плавного полета
+local currentTween = nil
 
 -- Цветовая палитра
 local COLOR_INNOCENT = Color3.fromRGB(0, 255, 0)   -- Зеленый (Невиновный)
@@ -138,16 +140,33 @@ local function applyESP(player)
 end
 
 ----------------------------------------------------------------------
--- 🔫 ЛОГИКА ESP ВЫПАВШЕГО ПИСТОЛЕТА
+-- 🔫 ЛОГИКА ESP ВЫПАВШЕГО ПИСТОЛЕТА (БЕЗ СКИНОВ ИГРОКОВ)
 ----------------------------------------------------------------------
+
+local function isPlayerCharacter(obj)
+	local ancestor = obj
+	while ancestor and ancestor ~= Workspace do
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Character == ancestor then
+				return true
+			end
+		end
+		ancestor = ancestor.Parent
+	end
+	return false
+end
 
 local function checkAndHighlightGun(object)
 	if not object then return end
 
+	if isPlayerCharacter(object) then
+		if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
+		if object:FindFirstChild("GunText") then object.GunText:Destroy() end
+		return
+	end
+
 	local name = object.Name:lower()
 	local isGun = name:find("gun") or name:find("pistol") or name:find("revolver") or name:find("пест") or name:find("пистолет") or name:find("gundrop")
-	
-	local isEquippedByPlayer = object:FindFirstAncestorOfClass("Model") and object:FindFirstAncestorOfClass("Model"):FindFirstChildOfClass("Humanoid")
 
 	if isGun then
 		local adorneePart = nil
@@ -159,7 +178,7 @@ local function checkAndHighlightGun(object)
 			adorneePart = object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart")
 		end
 
-		if isEquippedByPlayer or not GUN_ESP_ENABLED then
+		if not GUN_ESP_ENABLED then
 			if object:FindFirstChild("GunHighlight") then object.GunHighlight:Destroy() end
 			if object:FindFirstChild("GunText") then object.GunText:Destroy() end
 			if adorneePart then
@@ -237,7 +256,7 @@ Workspace.DescendantRemoving:Connect(function(item)
 end)
 
 ----------------------------------------------------------------------
--- 💰 ЛОГИКА АВТОФАРМА МОНЕТ
+-- 💰 ЛОГИКА АВТОФАРМА (ПЛАВНЫЙ ПОЛЕТ ЧЕРЕЗ TWEEN)
 ----------------------------------------------------------------------
 
 local function getClosestCoin()
@@ -265,24 +284,48 @@ end
 
 task.spawn(function()
 	while true do
-		task.wait()
+		task.wait(0.1)
 		if AUTO_FARM_ENABLED then
 			local character = LocalPlayer.Character
 			if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Humanoid") then
 				local hrp = character.HumanoidRootPart
+				local humanoid = character.Humanoid
 				local coin = getClosestCoin()
 				
 				if coin then
+					humanoid.PlatformStand = true -- Отключаем гравитацию и падение
 					local targetPos = coin.Position
-					local direction = (targetPos - hrp.Position)
-					local distance = direction.Magnitude
+					local distance = (targetPos - hrp.Position).Magnitude
+					local timeToTravel = distance / FARM_SPEED
 					
-					if distance > 1 then
-						local step = math.min(distance, FARM_SPEED * 0.05)
-						hrp.CFrame = hrp.CFrame + (direction.Unit * step)
-						hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+					if timeToTravel > 0.05 then
+						if currentTween then currentTween:Cancel() end
+						local tweenInfo = TweenInfo.new(timeToTravel, Enum.EasingStyle.Linear)
+						currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+						currentTween:Play()
+						
+						-- Ждем пока долетим или монета исчезнет
+						local elapsed = 0
+						while elapsed < timeToTravel and AUTO_FARM_ENABLED and coin and coin.Parent do
+							task.wait(0.05)
+							elapsed = elapsed + 0.05
+						end
 					end
+				else
+					humanoid.PlatformStand = false
+					if currentTween then currentTween:Cancel() end
 				end
+			else
+				if currentTween then currentTween:Cancel() end
+			end
+		else
+			local character = LocalPlayer.Character
+			if character and character:FindFirstChild("Humanoid") then
+				character.Humanoid.PlatformStand = false
+			end
+			if currentTween then 
+				currentTween:Cancel() 
+				currentTween = nil
 			end
 		end
 	end
@@ -315,7 +358,7 @@ MainTab:CreateToggle({
 })
 
 FarmTab:CreateToggle({
-   Name = "Автофарм Монет (Полет)",
+   Name = "Автофарм Монет (Плавный полет)",
    CurrentValue = false,
    Flag = "AutoFarmToggle",
    Callback = function(Value)
@@ -325,10 +368,10 @@ FarmTab:CreateToggle({
 
 FarmTab:CreateSlider({
    Name = "Скорость полета за монетой",
-   Range = {10, 150},
-   Increment = 5,
+   Range = {10, 60},
+   Increment = 2,
    Suffix = "studs/s",
-   CurrentValue = 50,
+   CurrentValue = 25,
    Flag = "FarmSpeedSlider",
    Callback = function(Value)
       FARM_SPEED = Value
