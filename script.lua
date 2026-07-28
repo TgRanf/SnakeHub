@@ -1,16 +1,17 @@
 -- ====================================================================
--- MM2 Pro Helper (ESP + Crystals + Smart Auto-Farm + Murderer Fling)
+-- MM2 Crystal UI Pro (Crystal Theme + Smart Auto-Farm + Perfect Fling)
 -- ====================================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "MM2 Pro Helper",
-   LoadingTitle = "Запуск скрипта...",
+   Name = "MM2 Crystal UI Pro",
+   LoadingTitle = "Загрузка Кристальной Панели...",
    LoadingSubtitle = "by Assistant",
    ConfigurationSaving = { Enabled = false },
    Discord = { Enabled = false },
-   KeySystem = false
+   KeySystem = false,
+   Theme = "Amethyst" -- Красивая фиолетово-кристальная тема интерфейса
 })
 
 local MainTab = Window:CreateTab("Подсветка (ESP)", 4483362458)
@@ -24,7 +25,6 @@ local LocalPlayer = Players.LocalPlayer
 
 local ESP_ENABLED = false
 local GUN_ESP_ENABLED = false
-local CRYSTAL_ESP_ENABLED = false
 
 -- Переменные автофарма
 local AUTO_FARM_ENABLED = false
@@ -223,101 +223,34 @@ Workspace.DescendantAdded:Connect(function(item)
 end)
 
 ----------------------------------------------------------------------
--- 💎 ВИЗУАЛЬНЫЕ КРИСТАЛЛЫ (ЗАМЕНА МОНЕТ НА КРИСТАЛЛЫ)
+-- 💰 УМНЫЙ АВТОФАРМ И ИСПРАВЛЕННЫЙ ФЛИНГ С ВОЗВРАТОМ
 ----------------------------------------------------------------------
 
-local function applyCrystalVisual(obj)
-	if not obj or not obj:IsA("BasePart") then return end
-	local name = obj.Name:lower()
-	if not (name:find("coin") or name:find("монет")) then return end
-
-	if CRYSTAL_ESP_ENABLED then
-		-- Скрываем оригинальную монету
-		obj.Transparency = 1
-		obj.CanCollide = false
-
-		if not obj:FindFirstChild("CustomCrystalModel") then
-			local crystalModel = Instance.new("Model")
-			crystalModel.Name = "CustomCrystalModel"
-			
-			local part1 = Instance.new("WedgePart")
-			part1.Size = Vector3.new(1.0, 2.2, 1.0)
-			part1.BrickColor = BrickColor.new("Cyan")
-			part1.Material = Enum.Material.Neon
-			part1.Transparency = 0.2
-			part1.CFrame = obj.CFrame
-			part1.Anchored = false
-			part1.CanCollide = false
-			part1.Parent = crystalModel
-			
-			local part2 = Instance.new("WedgePart")
-			part2.Size = Vector3.new(1.0, 2.2, 1.0)
-			part2.BrickColor = BrickColor.new("Cyan")
-			part2.Material = Enum.Material.Neon
-			part2.Transparency = 0.2
-			part2.CFrame = obj.CFrame * CFrame.Angles(math.rad(180), 0, 0)
-			part2.Anchored = false
-			part2.CanCollide = false
-			part2.Parent = crystalModel
-			
-			local weld1 = Instance.new("WeldConstraint")
-			weld1.Part0 = obj
-			weld1.Part1 = part1
-			weld1.Parent = part1
-
-			local weld2 = Instance.new("WeldConstraint")
-			weld2.Part0 = obj
-			weld2.Part1 = part2
-			weld2.Parent = part2
-
-			local light = Instance.new("PointLight")
-			light.Color = Color3.fromRGB(0, 200, 255)
-			light.Brightness = 3
-			light.Range = 8
-			light.Parent = part1
-
-			crystalModel.Parent = obj
-		end
-	else
-		obj.Transparency = 0
-		if obj:FindFirstChild("CustomCrystalModel") then
-			obj.CustomCrystalModel:Destroy()
-		end
-	end
-end
-
-local function toggleCrystals(state)
-	CRYSTAL_ESP_ENABLED = state
-	for _, obj in ipairs(Workspace:GetDescendants()) do
-		applyCrystalVisual(obj)
-	end
-end
-
-Workspace.DescendantAdded:Connect(function(obj)
-	if CRYSTAL_ESP_ENABLED then
-		task.wait(0.1)
-		applyCrystalVisual(obj)
-	end
-end)
-
--- Плавное вращение кристаллов в реальном времени
-RunService.RenderStepped:Connect(function(dt)
-	if not CRYSTAL_ESP_ENABLED then return end
-	for _, obj in ipairs(Workspace:GetDescendants()) do
-		if obj:IsA("BasePart") and obj:FindFirstChild("CustomCrystalModel") then
-			local model = obj.CustomCrystalModel
-			for _, part in ipairs(model:GetChildren()) do
-				if part:IsA("WedgePart") then
-					part.CFrame = part.CFrame * CFrame.Angles(0, math.rad(60 * dt), 0)
+local function isBagFull()
+	local success, result = pcall(function()
+		local mainGui = LocalPlayer.PlayerGui:FindFirstChild("MainGUI")
+		if mainGui then
+			for _, desc in ipairs(mainGui:GetDescendants()) do
+				if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+					local text = desc.Text:lower()
+					-- Проверка на текстовые уведомления о полном мешке
+					if text:find("full") or text:find("полон") then
+						return true
+					end
+					-- Универсальная проверка для дроби (например 10/10, 15/15, 40/40, 50/50)
+					local cur, max = text:match("(%d+)%s*/%s*(%d+)")
+					if cur and max then
+						local cNum, mNum = tonumber(cur), tonumber(max)
+						if cNum and mNum and cNum >= mNum and mNum > 0 then
+							return true
+						end
+					end
 				end
 			end
 		end
-	end
-end)
-
-----------------------------------------------------------------------
--- 💰 УМНЫЙ АВТОФАРМ И ФЛИНГ УБИЙЦЫ
-----------------------------------------------------------------------
+	end)
+	return success and result or false
+end
 
 local function getMurdererPosition()
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -363,24 +296,7 @@ local function getClosestSafeCoin()
 	return closestCoin
 end
 
-local function isBagFull()
-	local success, result = pcall(function()
-		local mainGui = LocalPlayer.PlayerGui:FindFirstChild("MainGUI")
-		if mainGui then
-			local gameFrame = mainGui:FindFirstChild("Game")
-			if gameFrame then
-				local coinBag = gameFrame:FindFirstChild("CoinBag") or gameFrame:FindFirstChild("Coins")
-				if coinBag and coinBag:IsA("TextLabel") then
-					if coinBag.Text:find("10/10") or coinBag.Text:find("10") then
-						return true
-					end
-				end
-			end
-		end
-	end)
-	return success and result or false
-end
-
+-- Флинг убийцы с возвратом на исходную точку
 local function flingMurderer()
 	local murderer = nil
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -395,16 +311,32 @@ local function flingMurderer()
 		local character = LocalPlayer.Character
 		if character and character:FindFirstChild("HumanoidRootPart") then
 			local hrp = character.HumanoidRootPart
+			local humanoid = character.Humanoid
+			
+			-- Сохраняем текущую позицию игрока до телепортации
 			local oldPos = hrp.CFrame
 			
+			humanoid.PlatformStand = false
+			
 			local startTime = tick()
-			while tick() - startTime < 1.2 do
-				if not murderer.Character or not murderer.Character:FindFirstChild("HumanoidRootPart") then break end
-				hrp.CFrame = targetHrp.CFrame * CFrame.new(math.random(-2, 2), 0, math.random(-2, 2))
-				hrp.AssemblyLinearVelocity = Vector3.new(99999, 99999, 99999)
-				hrp.AssemblyAngularVelocity = Vector3.new(9999, 9999, 9999)
-				task.wait()
-			end
+			local connection
+			connection = RunService.Heartbeat:Connect(function()
+				if not murderer.Character or not murderer.Character:FindFirstChild("HumanoidRootPart") then return end
+				-- Быстро кружимся вокруг убийцы и разгоняем физику для флинга
+				local angle = tick() * 35
+				local offset = CFrame.new(math.cos(angle) * 2.5, 0, math.sin(angle) * 2.5)
+				hrp.CFrame = targetHrp.CFrame * offset
+				hrp.AssemblyLinearVelocity = Vector3.new(50000, 50000, 50000)
+				hrp.AssemblyAngularVelocity = Vector3.new(50000, 50000, 50000)
+			end)
+			
+			-- Длительность флинга (1.5 секунды)
+			task.wait(1.5)
+			if connection then connection:Disconnect() end
+			
+			-- Сбрасываем скорость и возвращаем игрока обратно на его место
+			hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+			hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 			hrp.CFrame = oldPos
 		end
 	end
@@ -419,19 +351,19 @@ task.spawn(function()
 				local hrp = character.HumanoidRootPart
 				local humanoid = character.Humanoid
 
+				-- Если мешок полон (10/10, 15/15, 40/40, 50/50 или статус Full)
 				if AUTO_RESET_ENABLED and isBagFull() then
 					humanoid.PlatformStand = false
 					if currentTween then currentTween:Cancel() end
 					
+					-- Делаем флинг убийцы и возвращаемся назад
 					flingMurderer()
-					task.wait(0.2)
+					task.wait(1)
 					
-					if character:FindFirstChild("Humanoid") then
-						character.Humanoid.Health = 0
+					-- Ждем начала следующего раунда / очистки мешка
+					while isBagFull() and AUTO_FARM_ENABLED do
+						task.wait(1)
 					end
-					
-					LocalPlayer.CharacterAdded:Wait()
-					task.wait(1.5)
 					continue
 				end
 
@@ -499,15 +431,6 @@ MainTab:CreateToggle({
    end,
 })
 
-MainTab:CreateToggle({
-   Name = "Визуальные кристаллы (ESP монет)",
-   CurrentValue = false,
-   Flag = "CrystalVisuals",
-   Callback = function(Value)
-      toggleCrystals(Value)
-   end,
-})
-
 FarmTab:CreateToggle({
    Name = "Умный Автофарм Монет",
    CurrentValue = false,
@@ -518,7 +441,7 @@ FarmTab:CreateToggle({
 })
 
 FarmTab:CreateToggle({
-   Name = "Авто-ресет (при 10/10) + Флинг убийцы",
+   Name = "Флинг убийцы при полном мешке + Возврат",
    CurrentValue = true,
    Flag = "AutoResetToggle",
    Callback = function(Value)
